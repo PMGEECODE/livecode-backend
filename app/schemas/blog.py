@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel
+from uuid import UUID
 from datetime import datetime
 
 class BlogPostBase(BaseModel):
@@ -18,7 +19,7 @@ class BlogPostUpdate(BlogPostBase):
     pass
 
 class BlogPostInDBBase(BlogPostBase):
-    id: Optional[int] = None
+    id: UUID
     published_date: Optional[datetime] = None
 
     class Config:

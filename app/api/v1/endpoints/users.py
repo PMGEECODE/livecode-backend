@@ -1,6 +1,7 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 from app import crud, schemas
 from app.api import deps
 
@@ -11,7 +12,6 @@ async def read_users(
     db: AsyncSession = Depends(deps.get_db),
     skip: int = 0,
     limit: int = 100,
-    # current_user: models.User = Depends(deps.get_current_active_superuser),
 ) -> Any:
     """
     Retrieve users.
@@ -24,7 +24,6 @@ async def create_user(
     *,
     db: AsyncSession = Depends(deps.get_db),
     user_in: schemas.UserCreate,
-    # current_user: models.User = Depends(deps.get_current_active_superuser),
 ) -> Any:
     """
     Create new user.
@@ -39,8 +38,7 @@ async def create_user(
 
 @router.get("/{user_id}", response_model=schemas.User)
 async def read_user_by_id(
-    user_id: int,
-    # current_user: models.User = Depends(deps.get_current_active_user),
+    user_id: UUID,
     db: AsyncSession = Depends(deps.get_db),
 ) -> Any:
     """

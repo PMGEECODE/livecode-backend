@@ -1,6 +1,7 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 from app import crud, schemas
 from app.api import deps
 
@@ -55,7 +56,7 @@ async def read_course_by_slug(
 async def update_course(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    id: int,
+    id: UUID,
     course_in: schemas.CourseUpdate,
 ) -> Any:
     """
@@ -73,7 +74,7 @@ async def update_course(
 async def delete_course(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    id: int,
+    id: UUID,
 ) -> Any:
     """
     Delete a course.

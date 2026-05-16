@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel
+from uuid import UUID
 
 class ServiceBase(BaseModel):
     title: Optional[str] = None
@@ -16,7 +17,7 @@ class ServiceUpdate(ServiceBase):
     pass
 
 class ServiceInDBBase(ServiceBase):
-    id: Optional[int] = None
+    id: UUID
 
     class Config:
         from_attributes = True

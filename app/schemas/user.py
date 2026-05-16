@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr
+from uuid import UUID
 
 # Shared properties
 class UserBase(BaseModel):
@@ -18,7 +19,7 @@ class UserUpdate(UserBase):
     password: Optional[str] = None
 
 class UserInDBBase(UserBase):
-    id: Optional[int] = None
+    id: UUID
 
     class Config:
         from_attributes = True

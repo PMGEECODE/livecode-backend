@@ -1,8 +1,10 @@
-from sqlalchemy import Column, Integer, String, Text
+import uuid
+from sqlalchemy import Column, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from app.db.base_class import Base
 
 class Service(Base):
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String, index=True, nullable=False)
     slug = Column(String, unique=True, index=True, nullable=False)
     description = Column(Text, nullable=False)
