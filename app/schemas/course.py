@@ -1,5 +1,5 @@
 from typing import Optional, List, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 
 # --- Schedule Schemas ---
@@ -24,8 +24,7 @@ class Schedule(ScheduleBase):
     id: UUID
     course_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Course Block Schemas ---
 class CourseBlockBase(BaseModel):
@@ -40,8 +39,7 @@ class CourseBlock(CourseBlockBase):
     id: UUID
     course_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Course Logistics Schemas ---
 class CourseLogisticsBase(BaseModel):
@@ -59,8 +57,7 @@ class CourseLogistics(CourseLogisticsBase):
     id: UUID
     course_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Course Schemas ---
 class CourseBase(BaseModel):
@@ -86,8 +83,7 @@ class CourseUpdate(CourseBase):
 class CourseInDBBase(CourseBase):
     id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class Course(CourseInDBBase):
     logistics: Optional[CourseLogistics] = None

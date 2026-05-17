@@ -4,3 +4,4 @@ from app.db.models.course import Course, CourseLogistics, CourseBlock  # noqa
 from app.db.models.blog import BlogPost  # noqa
 from app.db.models.service import Service  # noqa
 from app.db.models.schedule import Schedule  # noqa
+from app.db.models.registration import CourseRegistration  # noqa

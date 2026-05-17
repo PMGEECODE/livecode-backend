@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from app import crud, schemas
 from app.api import deps
+from app.core.sse import sse_manager
 
 router = APIRouter()
 
@@ -34,7 +35,9 @@ async def create_course(
             status_code=400,
             detail="The course with this slug already exists in the system.",
         )
-    return await crud.course.create(db, obj_in=course_in)
+    new_course = await crud.course.create(db, obj_in=course_in)
+    await sse_manager.broadcast("courses_updated", {"action": "create", "id": str(new_course.id)})
+    return new_course
 
 @router.get("/{slug}", response_model=schemas.Course)
 async def read_course_by_slug(
@@ -68,7 +71,9 @@ async def update_course(
             status_code=404,
             detail="Course not found",
         )
-    return await crud.course.update(db, db_obj=course, obj_in=course_in)
+    updated_course = await crud.course.update(db, db_obj=course, obj_in=course_in)
+    await sse_manager.broadcast("courses_updated", {"action": "update", "id": str(updated_course.id)})
+    return updated_course
 
 @router.delete("/{id}", response_model=schemas.Course)
 async def delete_course(
@@ -85,4 +90,6 @@ async def delete_course(
             status_code=404,
             detail="Course not found",
         )
-    return await crud.course.remove(db, id=id)
+    removed_course = await crud.course.remove(db, id=id)
+    await sse_manager.broadcast("courses_updated", {"action": "delete", "id": str(id)})
+    return removed_course

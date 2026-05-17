@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from datetime import datetime
 
@@ -22,8 +22,7 @@ class BlogPostInDBBase(BlogPostBase):
     id: UUID
     published_date: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class BlogPost(BlogPostInDBBase):
     pass

@@ -1,6 +1,6 @@
 from typing import Optional
-from pydantic import BaseModel, EmailStr
 from uuid import UUID
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 # Shared properties
 class UserBase(BaseModel):
@@ -21,8 +21,7 @@ class UserUpdate(UserBase):
 class UserInDBBase(UserBase):
     id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Additional properties to return via API
 class User(UserInDBBase):

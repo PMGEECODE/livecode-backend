@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 
 class ServiceBase(BaseModel):
@@ -19,8 +19,7 @@ class ServiceUpdate(ServiceBase):
 class ServiceInDBBase(ServiceBase):
     id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class Service(ServiceInDBBase):
     pass
