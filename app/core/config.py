@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 
+    # Email Settings
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAILS_FROM_EMAIL: str = "info@livecodetechnologies.com"
+    EMAILS_FROM_NAME: str = "Livecode Technologies"
+
     # Security & CORS
     # Stored as a raw str to prevent pydantic-settings from attempting
     # json.loads() on the comma-separated value before validators run.

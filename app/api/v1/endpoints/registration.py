@@ -17,6 +17,87 @@ from app.core.document_generators import (
     generate_invitation_letter_pdf,
     generate_pre_training_form_docx
 )
+import asyncio
+from fastapi import BackgroundTasks
+from app.core.email import send_email_async
+
+async def process_registration_email(registration_dict: dict, course_dict: dict = None):
+    # This runs in background to generate documents and send email
+    class DummyRegistration:
+        pass
+    class DummyCourse:
+        pass
+    
+    reg_obj = DummyRegistration()
+    for k, v in registration_dict.items():
+        setattr(reg_obj, k, v)
+        
+    course_obj = None
+    if course_dict:
+        course_obj = DummyCourse()
+        for k, v in course_dict.items():
+            setattr(course_obj, k, v)
+        class DummyLogistics:
+            pass
+        if course_dict.get('logistics'):
+            course_obj.logistics = DummyLogistics()
+            for k, v in course_dict['logistics'].items():
+                setattr(course_obj.logistics, k, v)
+
+    invoice_buffer = await asyncio.to_thread(generate_invoice_pdf, reg_obj, course_obj)
+    invitation_buffer = await asyncio.to_thread(generate_invitation_letter_pdf, reg_obj, course_obj)
+    pre_form_buffer = await asyncio.to_thread(generate_pre_training_form_docx, reg_obj, course_obj)
+    
+    attachments = [
+        {
+            "filename": f"Invoice_INV-{str(reg_obj.id)[:4]}.pdf",
+            "content": invoice_buffer.getvalue(),
+            "maintype": "application",
+            "subtype": "pdf"
+        },
+        {
+            "filename": "Invitation_Letter.pdf",
+            "content": invitation_buffer.getvalue(),
+            "maintype": "application",
+            "subtype": "pdf"
+        },
+        {
+            "filename": "Pre-Training_Evaluation_Form.docx",
+            "content": pre_form_buffer.getvalue(),
+            "maintype": "application",
+            "subtype": "vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+    ]
+    
+    subject = f"Registration Confirmation - {reg_obj.course_title}"
+    html_body = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>Thank You For Choosing Livecode Technologies!</h2>
+            <p>Hello {reg_obj.title or ''} {reg_obj.first_name} {reg_obj.last_name},</p>
+            <p>Thank you for registering for the <strong>{reg_obj.course_title}</strong> course. This is to confirm that we have received your registration.</p>
+            <p>We have sent the following documents for your attention as you prepare to attend. Kindly check your attachments for:</p>
+            <ul>
+                <li>A Payment Invoice</li>
+                <li>An Invitation Letter</li>
+                <li>A Pre-Training Evaluation Form</li>
+            </ul>
+            <p>One of our agents will be in touch with you shortly. For queries or requests for assistance, feel free to contact us via:</p>
+            <p><strong>Email:</strong> info@livecodetechnologies.com<br>
+            <strong>Tel:</strong> +254 796 190 682</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    await send_email_async(reg_obj.email, subject, html_body, attachments)
 
 router = APIRouter()
 
@@ -81,6 +162,7 @@ async def fix_db(db: AsyncSession = Depends(get_db)) -> Any:
 )
 async def submit_registration(
     payload: RegistrationCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> RegistrationResponse:
     """
@@ -88,9 +170,11 @@ async def submit_registration(
     
     - Validates all input fields strictly (extra fields rejected).
     - Persists registration to the database.
+    - Generates attachments and sends an email in the background.
     - Returns the created registration record.
     """
     # Validate that the course actually exists before attempting insertion
+    course_dict = None
     if payload.course_id:
         import uuid
         from app.crud.course import course as crud_course
@@ -102,6 +186,20 @@ async def submit_registration(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="The selected course does not exist.",
                 )
+            
+            # Serialize course info for the background task
+            course_dict = {
+                "id": str(course.id),
+                "title": course.title,
+            }
+            if course.logistics:
+                course_dict["logistics"] = {
+                    "location": course.logistics.location,
+                    "start_date": course.logistics.start_date.isoformat() if course.logistics.start_date else None,
+                    "end_date": course.logistics.end_date.isoformat() if course.logistics.end_date else None,
+                    "duration": course.logistics.duration,
+                    "price_usd": float(course.logistics.price_usd) if course.logistics.price_usd else 0.0,
+                }
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -117,6 +215,27 @@ async def submit_registration(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process registration. Please try again.",
         )
+
+    # Serialize registration for the background task
+    reg_dict = {
+        "id": registration.id,
+        "course_id": str(registration.course_id) if registration.course_id else None,
+        "course_title": registration.course_title,
+        "schedule_date": registration.schedule_date,
+        "schedule_location": registration.schedule_location,
+        "registration_type": registration.registration_type,
+        "title": registration.title,
+        "first_name": registration.first_name,
+        "last_name": registration.last_name,
+        "organization": registration.organization,
+        "country": registration.country,
+        "email": registration.email,
+        "phone": registration.phone,
+        "department": registration.department,
+        "group_size": registration.group_size,
+    }
+
+    background_tasks.add_task(process_registration_email, reg_dict, course_dict)
 
     return RegistrationResponse(
         id=str(registration.id),
