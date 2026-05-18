@@ -47,14 +47,7 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
 app.dependency_overrides[get_db] = override_get_db
 
 async def mock_superuser():
-    return User(  # type: ignore
-        id=uuid.uuid4(),
-        full_name="System Admin",
-        email="admin@livecodetech.co.ke",
-        hashed_password="hashed_pwd",
-        is_active=True,
-        is_superuser=True,
-    )
+    return User(id=uuid.uuid4(), full_name="System Admin", email="admin@livecodetech.co.ke", hashed_password="hashed_pwd", is_active=True, is_superuser=True)  # type: ignore
 
 app.dependency_overrides[get_current_active_superuser] = mock_superuser
 
@@ -256,15 +249,7 @@ async def test_dashboard_stats_and_counts(async_client: AsyncClient):
             registration_type="individual",
             status="pending",
         )
-        msg = Contact(  # type: ignore
-            id=uuid.uuid4(),
-            name="Alice",
-            email="alice@inquiry.com",
-            phone="+254711223344",
-            subject="Project Inquiry",
-            message="Looking to build an ERP system.",
-            is_resolved=False,
-        )
+        msg = Contact(id=uuid.uuid4(), name="Alice", email="alice@inquiry.com", phone="+254711223344", subject="Project Inquiry", message="Looking to build an ERP system.", is_resolved=False)  # type: ignore
         db.add_all([c, s, b, r, msg])
         await db.commit()
 
@@ -358,4 +343,107 @@ async def test_delete_registration_admin(async_client: AsyncClient):
         from sqlalchemy import select
         res = await db.execute(select(CourseRegistration))
         assert len(res.scalars().all()) == 0
+
+
+@pytest.mark.asyncio
+async def test_download_invoice_document(async_client: AsyncClient):
+    """Verify that any user can download their course registration Invoice PDF."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="Excel and Power BI Analytics",
+            first_name="Charles",
+            last_name="Samir",
+            email="charles.samir@example.com",
+            registration_type="individual",
+            status="pending",
+            country="Afghanistan",
+            organization="Gas Manufacturer"
+        )
+        db.add(r)
+        await db.commit()
+
+    response = await async_client.get(f"/api/v1/registrations/{reg_id}/invoice")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.headers["content-type"] == "application/pdf"
+    assert "Content-Disposition" in response.headers
+    assert "Invoice_Charles_Samir.pdf" in response.headers["Content-Disposition"]
+    
+    # Assert PDF file signature (%PDF)
+    assert response.content.startswith(b"%PDF")
+
+
+@pytest.mark.asyncio
+async def test_download_invitation_letter_document(async_client: AsyncClient):
+    """Verify that any user can download their dynamic course Invitation Letter PDF."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="Excel and Power BI Analytics",
+            first_name="Charles",
+            last_name="Samir",
+            email="charles.samir@example.com",
+            registration_type="individual",
+            status="pending",
+            country="Afghanistan",
+            organization="Gas Manufacturer"
+        )
+        db.add(r)
+        await db.commit()
+
+    response = await async_client.get(f"/api/v1/registrations/{reg_id}/invitation-letter")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.headers["content-type"] == "application/pdf"
+    assert "Content-Disposition" in response.headers
+    assert "Invitation_Letter_Charles_Samir.pdf" in response.headers["Content-Disposition"]
+    
+    # Assert PDF file signature (%PDF)
+    assert response.content.startswith(b"%PDF")
+
+
+@pytest.mark.asyncio
+async def test_download_pre_training_form_document(async_client: AsyncClient):
+    """Verify that any user can download their Word DOCX pre-training evaluation form."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="Excel and Power BI Analytics",
+            first_name="Charles",
+            last_name="Samir",
+            email="charles.samir@example.com",
+            registration_type="individual",
+            status="pending",
+            country="Afghanistan",
+            organization="Gas Manufacturer"
+        )
+        db.add(r)
+        await db.commit()
+
+    response = await async_client.get(f"/api/v1/registrations/{reg_id}/pre-training-form")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    assert "Content-Disposition" in response.headers
+    assert "Pre_Training_Form_Charles_Samir.docx" in response.headers["Content-Disposition"]
+    
+    # Assert DOCX file signature (PK\x03\x04 zip header)
+    assert response.content.startswith(b"PK\x03\x04")
+
+
+@pytest.mark.asyncio
+async def test_download_documents_not_found(async_client: AsyncClient):
+    """Verify that requests with non-existent registration IDs fail gracefully with 404."""
+    fake_id = uuid.uuid4()
+    
+    response = await async_client.get(f"/api/v1/registrations/{fake_id}/invoice")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    
+    response = await async_client.get(f"/api/v1/registrations/{fake_id}/invitation-letter")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    
+    response = await async_client.get(f"/api/v1/registrations/{fake_id}/pre-training-form")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
 

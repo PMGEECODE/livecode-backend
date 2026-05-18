@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 import uuid
 from typing import Any, List
 from app.api import deps
@@ -8,6 +10,12 @@ from app.api.deps import get_db
 from app.schemas.registration import RegistrationCreate, RegistrationResponse
 from app.crud.registration import create_registration
 from app.db.models.registration import CourseRegistration
+from app.db.models.course import Course
+from app.core.document_generators import (
+    generate_invoice_pdf,
+    generate_invitation_letter_pdf,
+    generate_pre_training_form_docx
+)
 
 router = APIRouter()
 
@@ -140,7 +148,6 @@ async def update_registration_status(
     }
 
 
-
 @router.delete(
     "/{id}",
     response_model=Any,
@@ -162,4 +169,109 @@ async def delete_registration(
     await db.delete(registration)
     await db.commit()
     return {"message": "Registration deleted successfully"}
+
+
+@router.get(
+    "/{id}/invoice",
+    summary="Download dynamically generated registration invoice PDF",
+)
+async def download_invoice(
+    id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Generate and stream a professional 3-page Invoice PDF for a course registration.
+    """
+    result = await db.execute(select(CourseRegistration).filter(CourseRegistration.id == id))
+    registration = result.scalars().first()
+    if not registration:
+        raise HTTPException(status_code=404, detail="Registration not found")
+        
+    course = None
+    if registration.course_id:
+        course_res = await db.execute(
+            select(Course)
+            .options(selectinload(Course.logistics))
+            .filter(Course.id == registration.course_id)
+        )
+        course = course_res.scalars().first()
+        
+    pdf_buffer = generate_invoice_pdf(registration, course)
+    filename = f"Invoice_{registration.first_name}_{registration.last_name}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get(
+    "/{id}/invitation-letter",
+    summary="Download dynamically generated registration invitation letter PDF",
+)
+async def download_invitation_letter(
+    id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Generate and stream a professional 6-page Invitation Letter PDF with syllabus for a course registration.
+    """
+    result = await db.execute(select(CourseRegistration).filter(CourseRegistration.id == id))
+    registration = result.scalars().first()
+    if not registration:
+        raise HTTPException(status_code=404, detail="Registration not found")
+        
+    course = None
+    if registration.course_id:
+        course_res = await db.execute(
+            select(Course)
+            .options(selectinload(Course.logistics))
+            .filter(Course.id == registration.course_id)
+        )
+        course = course_res.scalars().first()
+        
+    pdf_buffer = generate_invitation_letter_pdf(registration, course)
+    filename = f"Invitation_Letter_{registration.first_name}_{registration.last_name}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get(
+    "/{id}/pre-training-form",
+    summary="Download dynamically generated pre-training evaluation form DOCX",
+)
+async def download_pre_training_form(
+    id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Generate and stream a professional Word DOCX Pre-Training assessment form for a course registration.
+    """
+    result = await db.execute(select(CourseRegistration).filter(CourseRegistration.id == id))
+    registration = result.scalars().first()
+    if not registration:
+        raise HTTPException(status_code=404, detail="Registration not found")
+        
+    course = None
+    if registration.course_id:
+        course_res = await db.execute(
+            select(Course)
+            .options(selectinload(Course.logistics))
+            .filter(Course.id == registration.course_id)
+        )
+        course = course_res.scalars().first()
+        
+    docx_buffer = generate_pre_training_form_docx(registration, course)
+    filename = f"Pre_Training_Form_{registration.first_name}_{registration.last_name}.docx"
+    
+    return StreamingResponse(
+        docx_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
