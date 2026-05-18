@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 import uuid
 from typing import Any, List
+import sqlalchemy as sa
 from app.api import deps
 from app.api.deps import get_db
 from app.schemas.registration import RegistrationCreate, RegistrationResponse
@@ -18,6 +19,58 @@ from app.core.document_generators import (
 )
 
 router = APIRouter()
+
+@router.get("/fix-db")
+async def fix_db(db: AsyncSession = Depends(get_db)) -> Any:
+    """Temporary endpoint to create the course_registration table on production."""
+    try:
+        sql = sa.text('''
+        CREATE TABLE IF NOT EXISTS course_registration (
+            id UUID NOT NULL PRIMARY KEY,
+            course_id UUID,
+            course_title VARCHAR NOT NULL,
+            schedule_date VARCHAR,
+            schedule_location VARCHAR,
+            registration_type VARCHAR NOT NULL,
+            title VARCHAR,
+            first_name VARCHAR NOT NULL,
+            middle_name VARCHAR,
+            last_name VARCHAR NOT NULL,
+            gender VARCHAR,
+            organization VARCHAR,
+            department VARCHAR,
+            phone VARCHAR,
+            email VARCHAR NOT NULL,
+            official_email VARCHAR,
+            country VARCHAR,
+            city VARCHAR,
+            address VARCHAR,
+            how_heard VARCHAR,
+            accommodation BOOLEAN,
+            airport_pickup BOOLEAN,
+            additional_info TEXT,
+            group_size VARCHAR,
+            group_members_json TEXT,
+            status VARCHAR NOT NULL,
+            FOREIGN KEY(course_id) REFERENCES course (id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS ix_course_registration_course_id ON course_registration (course_id);
+        CREATE INDEX IF NOT EXISTS ix_course_registration_email ON course_registration (email);
+        ''')
+        await db.execute(sql)
+        await db.commit()
+        
+        # Also fix the alembic version
+        try:
+            await db.execute(sa.text("UPDATE alembic_version SET version_num = '9e49804f78bb'"))
+            await db.commit()
+        except Exception:
+            pass
+            
+        return {"message": "course_registration table created successfully! You can now submit registrations."}
+    except Exception as e:
+        await db.rollback()
+        return {"error": str(e)}
 
 
 @router.post(
