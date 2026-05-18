@@ -26,6 +26,8 @@ import logging as _logging
 
 _logger = _logging.getLogger(__name__)
 
+router = APIRouter()
+
 
 def _build_reg_obj(data: dict):
     """Build a simple attribute object from a dict for use with document generators."""
@@ -224,8 +226,6 @@ async def process_registration_email(registration_dict: dict, course_dict: dict 
         )
         _logger.info("Sent member email to %s for registration %s", member_email, registration_dict.get("id"))
 
-
-router = APIRouter()
 
 
 @router.get("/fix-db")
