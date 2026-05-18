@@ -195,8 +195,8 @@ async def submit_registration(
             if course.logistics:
                 course_dict["logistics"] = {
                     "location": course.logistics.location,
-                    "start_date": course.logistics.start_date.isoformat() if course.logistics.start_date else None,
-                    "end_date": course.logistics.end_date.isoformat() if course.logistics.end_date else None,
+                    "start_date": course.logistics.start_date.isoformat() if hasattr(course.logistics.start_date, 'isoformat') else course.logistics.start_date,
+                    "end_date": course.logistics.end_date.isoformat() if hasattr(course.logistics.end_date, 'isoformat') else course.logistics.end_date,
                     "duration": course.logistics.duration,
                     "price_usd": float(course.logistics.price_usd) if course.logistics.price_usd else 0.0,
                 }
