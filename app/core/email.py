@@ -1,7 +1,9 @@
 import smtplib
-from email.message import EmailMessage
-import io
 import asyncio
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 from typing import List, Dict, Any, Optional
 import logging
 
@@ -9,26 +11,44 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-def send_email_sync(to_email: str, subject: str, html_body: str, attachments: Optional[List[Dict[str, Any]]] = None):
+
+def send_email_sync(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    attachments: Optional[List[Dict[str, Any]]] = None,
+) -> None:
     if not settings.SMTP_HOST:
-        logger.warning(f"SMTP_HOST not configured. Mock sending email to {to_email} with subject: '{subject}'")
+        logger.warning(
+            "SMTP_HOST not configured. Email to '%s' with subject '%s' was not sent.",
+            to_email,
+            subject,
+        )
         return
 
-    msg = EmailMessage()
-    msg['Subject'] = subject
-    msg['From'] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
-    msg['To'] = to_email
-    msg.set_content("Please enable HTML to view this email.")
-    msg.add_alternative(html_body, subtype='html')
+    # Build a multipart/mixed message so attachments are always delivered correctly
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = subject
+    msg["From"] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
+    msg["To"] = to_email
 
-    if attachments:
-        for attachment in attachments:
-            msg.add_attachment(
-                attachment["content"],
-                maintype=attachment["maintype"],
-                subtype=attachment["subtype"],
-                filename=attachment["filename"]
-            )
+    # Wrap the body in multipart/alternative so plain-text fallback works
+    body_part = MIMEMultipart("alternative")
+    body_part.attach(MIMEText("Please enable HTML to view this email.", "plain", "utf-8"))
+    body_part.attach(MIMEText(html_body, "html", "utf-8"))
+    msg.attach(body_part)
+
+    # Attach each file explicitly
+    for attachment in (attachments or []):
+        mime_base = MIMEBase(attachment["maintype"], attachment["subtype"])
+        mime_base.set_payload(attachment["content"])
+        encoders.encode_base64(mime_base)
+        mime_base.add_header(
+            "Content-Disposition",
+            "attachment",
+            filename=attachment["filename"],
+        )
+        msg.attach(mime_base)
 
     try:
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
@@ -36,10 +56,16 @@ def send_email_sync(to_email: str, subject: str, html_body: str, attachments: Op
                 server.starttls()
             if settings.SMTP_USER and settings.SMTP_PASSWORD:
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg)
-            logger.info(f"Successfully sent email to {to_email}")
-    except Exception as e:
-        logger.error(f"Failed to send email to {to_email}: {e}")
+            server.sendmail(msg["From"], [to_email], msg.as_bytes())
+            logger.info("Email sent to %s", to_email)
+    except Exception as exc:
+        logger.error("Failed to send email to %s: %s", to_email, exc)
 
-async def send_email_async(to_email: str, subject: str, html_body: str, attachments: Optional[List[Dict[str, Any]]] = None):
+
+async def send_email_async(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    attachments: Optional[List[Dict[str, Any]]] = None,
+) -> None:
     await asyncio.to_thread(send_email_sync, to_email, subject, html_body, attachments)
