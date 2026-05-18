@@ -37,9 +37,29 @@ async def submit_registration(
     - Persists registration to the database.
     - Returns the created registration record.
     """
+    # Validate that the course actually exists before attempting insertion
+    if payload.course_id:
+        import uuid
+        from app.crud.course import course as crud_course
+        try:
+            parsed_id = uuid.UUID(payload.course_id)
+            course = await crud_course.get(db=db, id=parsed_id)
+            if not course:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="The selected course does not exist.",
+                )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid course ID format.",
+            )
+
     try:
         registration = await create_registration(db=db, payload=payload)
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.error(f"Registration Error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process registration. Please try again.",

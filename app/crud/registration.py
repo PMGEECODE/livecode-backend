@@ -15,8 +15,13 @@ async def create_registration(
             [m.model_dump() for m in payload.group_members]
         )
 
+    import uuid
+    course_id_obj = None
+    if payload.course_id:
+        course_id_obj = uuid.UUID(payload.course_id)
+
     registration = CourseRegistration(
-        course_id=payload.course_id,
+        course_id=course_id_obj,
         course_title=payload.course_title,
         schedule_date=payload.schedule_date,
         schedule_location=payload.schedule_location,
