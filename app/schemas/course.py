@@ -5,8 +5,6 @@ from uuid import UUID
 # --- Schedule Schemas ---
 class ScheduleBase(BaseModel):
     date_range: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
     location: Optional[str] = None
     mode: Optional[str] = None
     price_kes: Optional[float] = None
