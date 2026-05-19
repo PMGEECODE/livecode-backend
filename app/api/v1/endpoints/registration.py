@@ -162,7 +162,7 @@ async def process_registration_email(registration_dict: dict, course_dict: dict 
 
     # --- Generate shared invoice (includes all participant names for group regs) ---
     invoice_buffer = await asyncio.to_thread(
-        generate_invoice_pdf, reg_obj, course_obj, group_members or None
+        generate_invoice_pdf, reg_obj, course_obj, group_members or None, reg_obj.currency
     )
     invoice_bytes = invoice_buffer.getvalue()
     invoice_filename = f"Invoice_INV-{str(reg_obj.id)[:8].upper()}.pdf"
@@ -429,6 +429,7 @@ async def submit_registration(
         "department": registration.department,
         "group_size": registration.group_size,
         "group_members_json": registration.group_members_json,
+        "currency": registration.currency,
     }
 
     background_tasks.add_task(process_registration_email, reg_dict, course_dict)
@@ -565,6 +566,7 @@ async def delete_registration(
 )
 async def download_invoice(
     id: uuid.UUID,
+    currency: str = "USD",
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """
@@ -584,7 +586,7 @@ async def download_invoice(
         )
         course = course_res.scalars().first()
         
-    pdf_buffer = generate_invoice_pdf(registration, course)
+    pdf_buffer = generate_invoice_pdf(registration, course, currency=currency)
     filename = f"Invoice_{registration.first_name}_{registration.last_name}.pdf"
     
     return StreamingResponse(

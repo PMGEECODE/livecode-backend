@@ -44,6 +44,9 @@ class RegistrationCreate(BaseModel):
     group_size: Optional[str] = Field(None, max_length=10)
     group_members: Optional[List[GroupMember]] = None
 
+    # Currency selection (USD or KES)
+    currency: Optional[str] = Field("USD", max_length=10)
+
     @field_validator("phone", mode="before")
     @classmethod
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
@@ -64,5 +67,6 @@ class RegistrationResponse(BaseModel):
     first_name: str
     last_name: str
     email: str
+    currency: Optional[str] = "USD"
 
     model_config = {"from_attributes": True}

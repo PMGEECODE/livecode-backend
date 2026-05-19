@@ -42,6 +42,9 @@ class CourseRegistration(Base):
     group_size = Column(String, nullable=True)
     group_members_json = Column(Text, nullable=True)  # JSON string for group members
 
+    # Currency selection (USD or KES)
+    currency = Column(String, nullable=True, default="USD")
+
     # Status
     status = Column(String, nullable=False, default="pending")  # pending | confirmed | cancelled
 
@@ -72,6 +75,7 @@ class CourseRegistration(Base):
         additional_info = None,
         group_size = None,
         group_members_json = None,
+        currency = "USD",
         status = "pending",
         **kwargs,
     ):
@@ -100,4 +104,5 @@ class CourseRegistration(Base):
         self.additional_info = additional_info
         self.group_size = group_size
         self.group_members_json = group_members_json
+        self.currency = currency
         self.status = status

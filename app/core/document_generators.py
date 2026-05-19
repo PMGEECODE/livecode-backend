@@ -86,8 +86,13 @@ def get_registration_details(registration, course=None):
 
     # Price
     price_usd = 2700.0
-    if course and course.logistics and course.logistics.price_usd:
-        price_usd = course.logistics.price_usd
+    price_kes = 0.0
+    if course and hasattr(course, 'logistics') and course.logistics:
+        price_usd = course.logistics.price_usd if course.logistics.price_usd else 2700.0
+        if hasattr(course.logistics, 'price_kes') and course.logistics.price_kes:
+            price_kes = course.logistics.price_kes
+        else:
+            price_kes = price_usd * 135.0  # fallback conversion
 
     # Pax Count
     pax = 1
@@ -108,11 +113,12 @@ def get_registration_details(registration, course=None):
         "date_str": date_str,
         "duration": duration,
         "price_usd": price_usd,
+        "price_kes": price_kes,
         "pax": pax
     }
 
 
-def generate_invoice_pdf(registration, course=None, group_members: list | None = None) -> io.BytesIO:
+def generate_invoice_pdf(registration, course=None, group_members: list | None = None, currency: str = "USD") -> io.BytesIO:
     """Dynamically generates a beautiful, 3-page professional invoice PDF using ReportLab."""
     details = get_registration_details(registration, course)
     
@@ -200,7 +206,13 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
     story.append(Spacer(1, 20))
 
     # Title & Invoice details
-    story.append(Paragraph("INVOICE", title_style))
+    is_paid = getattr(registration, "status", "") == "confirmed"
+    
+    if is_paid:
+        title_para = Paragraph("INVOICE <font color='green'>(PAID)</font>", title_style)
+    else:
+        title_para = Paragraph("INVOICE", title_style)
+    story.append(title_para)
 
     # Metadata Block (Attention to vs Invoice details)
     invoice_no = f"INV-{1000 + int(str(registration.id.int)[:6]) % 90000}"
@@ -239,7 +251,10 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
     story.append(Spacer(1, 25))
 
     # Line Items Table
-    price_val = details['price_usd']
+    is_kes = currency.upper() == "KES"
+    price_val = details['price_kes'] if is_kes else details['price_usd']
+    sym = "KES" if is_kes else "USD"
+    
     pax_val = details['pax']
     subtotal = price_val * pax_val
     tax = subtotal * 0.16
@@ -251,8 +266,8 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
         [
             Paragraph("Project/Event Description", header_cell_style),
             Paragraph("No. of Pax", header_cell_style),
-            Paragraph("Unit Price (USD)", header_cell_style),
-            Paragraph("Total Price (USD)", header_cell_style)
+            Paragraph(f"Unit Price ({sym})", header_cell_style),
+            Paragraph(f"Total Price ({sym})", header_cell_style)
         ],
         [
             Paragraph(f"<b>{details['course_title']}</b><br/><font size=8 color='#718096'>Location: {details['location']} | Dates: {details['date_str']}</font>", body_style),
@@ -261,9 +276,9 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
             Paragraph(f"{subtotal:,.2f}", body_style)
         ],
         # Empty space or simple summaries
-        ["", "", Paragraph("<b>SUBTOTAL:</b>", body_bold), Paragraph(f"USD {subtotal:,.2f}", body_bold)],
-        ["", "", Paragraph("<b>TAX (16%):</b>", body_bold), Paragraph(f"USD {tax:,.2f}", body_bold)],
-        ["", "", Paragraph("<b>TOTAL AMOUNT:</b>", ParagraphStyle('TotalBold', parent=body_bold, textColor=primary_color)), Paragraph(f"USD {total_amount:,.2f}", ParagraphStyle('TotalBold2', parent=body_bold, textColor=primary_color))]
+        ["", "", Paragraph("<b>SUBTOTAL:</b>", body_bold), Paragraph(f"{sym} {subtotal:,.2f}", body_bold)],
+        ["", "", Paragraph("<b>TAX (16%):</b>", body_bold), Paragraph(f"{sym} {tax:,.2f}", body_bold)],
+        ["", "", Paragraph("<b>TOTAL AMOUNT:</b>", ParagraphStyle('TotalBold', parent=body_bold, textColor=primary_color)), Paragraph(f"{sym} {total_amount:,.2f}", ParagraphStyle('TotalBold2', parent=body_bold, textColor=primary_color))]
     ]
 
     items_table = Table(items_data, colWidths=[240, 80, 84, 84])
@@ -346,7 +361,7 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
     else:
         story.append(Spacer(1, 10))
 
-    # Banking Details Cards (KES and USD)
+    # Banking Details Cards
     bank_data_kes = [
         [Paragraph("<b>KES BANK DETAILS (EFT/WIRE)</b>", ParagraphStyle('BankHeadKes', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
         [Paragraph("<b>Account Name:</b>", body_style), Paragraph("Livecode Technologies Limited", body_style)],
@@ -355,7 +370,7 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
         [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCBLKENX", body_style)],
         [Paragraph("<b>Account Number (KES):</b>", body_style), Paragraph("1253187703", body_style)],
     ]
-    bank_table_kes = Table(bank_data_kes, colWidths=[90, 144])
+    bank_table_kes = Table(bank_data_kes, colWidths=[100, 150])
     bank_table_kes.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), bg_light),
         ('SPAN', (0,0), (1,0)),
@@ -377,7 +392,7 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
         [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCOOKENA", body_style)],
         [Paragraph("<b>Account Number (USD):</b>", body_style), Paragraph("02100825826300", body_style)],
     ]
-    bank_table_usd = Table(bank_data_usd, colWidths=[90, 144])
+    bank_table_usd = Table(bank_data_usd, colWidths=[100, 150])
     bank_table_usd.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), bg_light),
         ('SPAN', (0,0), (1,0)),
@@ -391,7 +406,11 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
         ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
     ]))
 
-    bank_parent_table = Table([[bank_table_kes, "", bank_table_usd]], colWidths=[234, 20, 234])
+    if is_kes:
+        bank_parent_table = Table([[bank_table_kes]], colWidths=[250])
+    else:
+        bank_parent_table = Table([[bank_table_usd]], colWidths=[250])
+        
     bank_parent_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
