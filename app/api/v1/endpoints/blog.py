@@ -1,13 +1,17 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from app import crud, schemas
+from app import crud, schemas, models
 from app.api import deps
+from app.core.limiter import limiter
 
 router = APIRouter()
 
 @router.get("/", response_model=List[schemas.BlogPost])
+@limiter.limit("60/minute")
 async def read_blog_posts(
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(deps.get_db),
     skip: int = 0,
     limit: int = 100,
@@ -22,6 +26,7 @@ async def read_blog_posts(
 async def create_blog_post(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_superuser),
     post_in: schemas.BlogPostCreate,
 ) -> Any:
     """
@@ -36,7 +41,10 @@ async def create_blog_post(
     return await crud.blog_post.create(db, obj_in=post_in)
 
 @router.get("/{slug}", response_model=schemas.BlogPost)
+@limiter.limit("60/minute")
 async def read_blog_post_by_slug(
+    request: Request,
+    response: Response,
     slug: str,
     db: AsyncSession = Depends(deps.get_db),
 ) -> Any:

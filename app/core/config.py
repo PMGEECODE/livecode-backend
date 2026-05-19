@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         return self.DATABASE_URL
 
-    # Rate Limiting
+    # Redis Caching & Rate Limiting
+    REDIS_URL: str = "redis://localhost:6379/0"
     RATE_LIMIT_PER_MINUTE: int = 60
 
     # Email Settings

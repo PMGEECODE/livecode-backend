@@ -64,12 +64,16 @@ async def check_db_health():
 
     logger.error("❌ Database health check failed after 3 attempts: %s", repr(last_exc))
 
+from app.core.redis import redis_manager
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
     await check_db_health()
+    await redis_manager.init()
     yield
     # Shutdown logic (if any)
+    await redis_manager.close()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -100,6 +104,13 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from app.core.limiter import limiter
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

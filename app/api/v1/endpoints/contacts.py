@@ -1,14 +1,18 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud, schemas
 from app.api import deps
+from app.core.limiter import limiter
 import uuid
 
 router = APIRouter()
 
 @router.post("/", response_model=schemas.Contact)
+@limiter.limit("5/minute")
 async def create_contact(
+    request: Request,
+    response: Response,
     *,
     db: AsyncSession = Depends(deps.get_db),
     contact_in: schemas.ContactCreate,

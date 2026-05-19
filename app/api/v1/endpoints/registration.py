@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.limiter import limiter
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 import uuid
@@ -333,7 +334,10 @@ async def fix_db(db: AsyncSession = Depends(get_db)) -> Any:
     status_code=status.HTTP_201_CREATED,
     summary="Submit a course registration",
 )
+@limiter.limit("5/minute")
 async def submit_registration(
+    request: Request,
+    response: Response,
     payload: RegistrationCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
