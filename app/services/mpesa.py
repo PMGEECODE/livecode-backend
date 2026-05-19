@@ -25,14 +25,25 @@ class MpesaService:
     def format_phone(self, phone: str) -> str:
         """Format phone number to Safaricom standard (2547XXXXXXXX or 2541XXXXXXXX)."""
         clean = "".join(filter(str.isdigit, phone))
+        
+        # If it starts with 254 and has 12 digits, it is already correct
+        if clean.startswith("254") and len(clean) == 12:
+            return clean
+            
+        # If it starts with 0 and has 10 digits (e.g. 0712345678), replace 0 with 254
+        if clean.startswith("0") and len(clean) == 10:
+            return "254" + clean[1:]
+            
+        # If it starts with 7 or 1 and has 9 digits, prepend 254
+        if (clean.startswith("7") or clean.startswith("1")) and len(clean) == 9:
+            return "254" + clean
+            
+        # Fallback normalization
         if clean.startswith("0"):
             clean = "254" + clean[1:]
-        elif clean.startswith("7") or clean.startswith("1"):
-            clean = "254" + clean
-        elif clean.startswith("+254"):
-            clean = clean[1:]
         elif not clean.startswith("254"):
             clean = "254" + clean
+            
         return clean
 
     async def get_access_token(self) -> str:
@@ -71,17 +82,17 @@ class MpesaService:
             amt = 1
 
         payload = {
-            "BusinessShortCode": int(self.shortcode),
+            "BusinessShortCode": str(self.shortcode),
             "Password": password,
             "Timestamp": timestamp,
             "TransactionType": "CustomerPayBillOnline",
             "Amount": amt,
-            "PartyA": int(formatted_phone),
-            "PartyB": int(self.shortcode),
-            "PhoneNumber": int(formatted_phone),
+            "PartyA": formatted_phone,
+            "PartyB": str(self.shortcode),
+            "PhoneNumber": formatted_phone,
             "CallBackURL": self.callback_url,
             "AccountReference": account_reference[:12],
-            "TransactionDesc": f"Payment for {account_reference[:20]}"
+            "TransactionDesc": account_reference[:12]
         }
 
         url = f"{self.base_url}/mpesa/stkpush/v1/processrequest"
