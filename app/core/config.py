@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         return self.DATABASE_URL
 
     # Redis Caching & Rate Limiting
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str
     RATE_LIMIT_PER_MINUTE: int = 60
 
     # Email Settings
