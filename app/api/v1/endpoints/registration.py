@@ -311,6 +311,24 @@ async def fix_db(db: AsyncSession = Depends(get_db)) -> Any:
         );
         CREATE INDEX IF NOT EXISTS ix_course_registration_course_id ON course_registration (course_id);
         CREATE INDEX IF NOT EXISTS ix_course_registration_email ON course_registration (email);
+
+        CREATE TABLE IF NOT EXISTS payment_transaction (
+            id UUID NOT NULL PRIMARY KEY,
+            registration_id UUID NOT NULL,
+            checkout_request_id VARCHAR NOT NULL UNIQUE,
+            merchant_request_id VARCHAR,
+            amount DOUBLE PRECISION NOT NULL,
+            phone_number VARCHAR NOT NULL,
+            status VARCHAR NOT NULL DEFAULT 'pending',
+            mpesa_receipt_number VARCHAR,
+            result_code VARCHAR,
+            result_desc VARCHAR,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE,
+            FOREIGN KEY(registration_id) REFERENCES course_registration (id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS ix_payment_transaction_registration_id ON payment_transaction (registration_id);
+        CREATE INDEX IF NOT EXISTS ix_payment_transaction_checkout_request_id ON payment_transaction (checkout_request_id);
         ''')
         await db.execute(sql)
         await db.commit()
@@ -322,7 +340,7 @@ async def fix_db(db: AsyncSession = Depends(get_db)) -> Any:
         except Exception:
             pass
             
-        return {"message": "course_registration table created successfully! You can now submit registrations."}
+        return {"message": "course_registration and payment_transaction tables created successfully! You can now submit registrations."}
     except Exception as e:
         await db.rollback()
         return {"error": str(e)}

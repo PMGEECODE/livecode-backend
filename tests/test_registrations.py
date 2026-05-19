@@ -7,7 +7,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.main import app
 from app.api.deps import get_db, get_current_active_superuser
-from app.db.base_class import Base
+from app.db.base import Base
 from app.crud.registration import create_registration
 from app.schemas.registration import RegistrationCreate
 from app.db.models.user import User
@@ -18,8 +18,8 @@ from app.db.models.service import Service
 from app.db.models.blog import BlogPost
 
 
-# Isolated async sqlite in-memory engine for deterministic, parallel-safe testing
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Isolated async sqlite database file for deterministic, parallel-safe testing
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_db.sqlite"
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(

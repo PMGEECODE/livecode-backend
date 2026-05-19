@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: str = "Livecode Technologies"
     COMPANY_NOTIFICATION_EMAIL: str = ""
 
+    # M-Pesa Settings
+    MPESA_ENVIRONMENT: str = "sandbox"
+    MPESA_SHORTCODE: str = "174379"
+    MPESA_PASSKEY: str = ""
+    MPESA_CONSUMER_KEY: str = ""
+    MPESA_CONSUMER_SECRET: str = ""
+    MPESA_CALLBACK_URL: str = ""
+
     # Security & CORS
     # Stored as a raw str to prevent pydantic-settings from attempting
     # json.loads() on the comma-separated value before validators run.
