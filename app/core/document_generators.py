@@ -186,7 +186,7 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
     brand_table_data = [
         [
             Paragraph("<b>LIVECODE TECHNOLOGIES LTD</b><br/><font size=8 color='#718096'>Outreach & Corporate Training Division</font>", body_style),
-            Paragraph("<b>TAX PIN:</b> 107267616<br/><b>REG NO:</b> 107267616", ParagraphStyle('TaxRight', parent=body_style, alignment=2))
+            Paragraph("<b>PIN:</b> P051713624B<br/><b>REG NO:</b> PVT|XYUPDZP", ParagraphStyle('TaxRight', parent=body_style, alignment=2))
         ]
     ]
     brand_table = Table(brand_table_data, colWidths=[300, 188])
@@ -346,33 +346,62 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
     else:
         story.append(Spacer(1, 10))
 
-    # Banking Details Card
-    bank_data = [
-        [Paragraph("<b>BANKING DETAILS FOR WIRE TRANSFER</b>", ParagraphStyle('BankHead', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
-        [Paragraph("<b>Name of Bank:</b>", body_style), Paragraph("Equity Bank Limited", body_style)],
-        [Paragraph("<b>Branch Name:</b>", body_style), Paragraph("Harambee Avenue", body_style)],
-        [Paragraph("<b>Account Name:</b>", body_style), Paragraph("Livecode Technologies Ltd", body_style)],
-        [Paragraph("<b>Account Number:</b>", body_style), Paragraph("0240298633598", body_style)],
-        [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("EQBLKENA", body_style)],
-        [Paragraph("<b>Bank Code:</b>", body_style), Paragraph("68", body_style)],
-        [Paragraph("<b>Branch Code:</b>", body_style), Paragraph("024", body_style)]
+    # Banking Details Cards (KES and USD)
+    bank_data_kes = [
+        [Paragraph("<b>KES BANK DETAILS (EFT/WIRE)</b>", ParagraphStyle('BankHeadKes', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
+        [Paragraph("<b>Account Name:</b>", body_style), Paragraph("Livecode Technologies Limited", body_style)],
+        [Paragraph("<b>Bank:</b>", body_style), Paragraph("Kenya Commercial Bank (KCB)", body_style)],
+        [Paragraph("<b>Branch:</b>", body_style), Paragraph("Mortgage Centre Sarit", body_style)],
+        [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCBLKENX", body_style)],
+        [Paragraph("<b>Account Number (KES):</b>", body_style), Paragraph("1253187703", body_style)],
     ]
-    bank_table = Table(bank_data, colWidths=[150, 338])
-    bank_table.setStyle(TableStyle([
+    bank_table_kes = Table(bank_data_kes, colWidths=[90, 144])
+    bank_table_kes.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), bg_light),
         ('SPAN', (0,0), (1,0)),
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
         ('TOPPADDING', (0,0), (-1,-1), 4),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ('BOX', (0,0), (-1,-1), 1, border_color),
-        ('LEFTPADDING', (0,0), (-1,-1), 15),
-        ('RIGHTPADDING', (0,0), (-1,-1), 15),
-        ('TOPPADDING', (0,0), (-1,0), 10),
-        ('BOTTOMPADDING', (0,-1), (-1,-1), 10),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING', (0,0), (-1,0), 8),
+        ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
     ]))
-    story.append(bank_table)
+
+    bank_data_usd = [
+        [Paragraph("<b>USD BANK DETAILS (EFT/WIRE)</b>", ParagraphStyle('BankHeadUsd', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
+        [Paragraph("<b>Account Name:</b>", body_style), Paragraph("LIVECODE TECHNOLOGIES LIMITED", body_style)],
+        [Paragraph("<b>Bank:</b>", body_style), Paragraph("Co-operative Bank of Kenya Ltd", body_style)],
+        [Paragraph("<b>Branch:</b>", body_style), Paragraph("Co-op House", body_style)],
+        [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCOOKENA", body_style)],
+        [Paragraph("<b>Account Number (USD):</b>", body_style), Paragraph("02100825826300", body_style)],
+    ]
+    bank_table_usd = Table(bank_data_usd, colWidths=[90, 144])
+    bank_table_usd.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), bg_light),
+        ('SPAN', (0,0), (1,0)),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('BOX', (0,0), (-1,-1), 1, border_color),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING', (0,0), (-1,0), 8),
+        ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
+    ]))
+
+    bank_parent_table = Table([[bank_table_kes, "", bank_table_usd]], colWidths=[234, 20, 234])
+    bank_parent_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(bank_parent_table)
     story.append(Spacer(1, 20))
-    story.append(Paragraph("<b>Note:</b> All checks should be payable to: <i>Livecode Technologies Ltd.</i><br/>Please send proof of payment to: <b>info@livecodetechnologies.com</b>", ParagraphStyle('NoteStyle', parent=body_style, fontSize=8.5)))
+    story.append(Paragraph("<b>Note:</b> All checks should be payable to: <i>Livecode Technologies Limited.</i><br/>Please send proof of payment to: <b>info@livecodetechnologies.com</b>", ParagraphStyle('NoteStyle', parent=body_style, fontSize=8.5)))
 
     story.append(PageBreak())
 
@@ -385,7 +414,7 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
         ("2. Validity of Offer", "Ninety days (90) from date of issue."),
         ("3. Pricing", "Training Fee shall be charged at individual or group rates which includes facilitation and cost of workshop materials. Prices are subject to change at any time prior to Livecode Technologies acceptance of Client’s order."),
         ("4. Order Acceptance", "Livecode Technologies shall accept the client order once the training fees have been paid in full."),
-        ("5. Terms of Payment", "The client will make the full payment to the following account details: Livecode Technologies Ltd Account Number: 0240298633598 Equity Bank Limited, Harambee Avenue. Branch Code: 024 SWIFT Code: EQBLKENA. 16% VAT is payable until proof of exemption is provided."),
+        ("5. Terms of Payment", "The client will make the full payment to either of the following account details: Livecode Technologies Limited (KES) Account No: 1253187703, Kenya Commercial Bank (KCB), Mortgage Centre Sarit, Swift Code: KCBLKENX; or LIVECODE TECHNOLOGIES LIMITED (USD) Account No: 02100825826300, Co-operative Bank of Kenya Ltd, Co-op House, Swift Code: KCOOKENA. 16% VAT is payable until proof of exemption is provided."),
         ("6. Delivery Time", "Client-site workshop will have a minimum duration of 5 working days and is subject to availability of an instructor."),
         ("7. Quorum", "All scheduled courses will be conducted as long as there's a participant that has confirmed."),
         ("8. Force Majeure", "Neither party will be liable for performance delays, nor for non-performance due to causes beyond its reasonable control; however, will this provision not apply to Client's payment obligation.")

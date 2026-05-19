@@ -38,4 +38,5 @@ async def main():
             traceback.print_exc()
             print("ERROR:", str(e))
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

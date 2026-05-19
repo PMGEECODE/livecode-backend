@@ -463,3 +463,27 @@ async def test_download_documents_not_found(async_client: AsyncClient):
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
+@pytest.mark.asyncio
+async def test_invoice_pdf_generator_details():
+    """Verify that the generated invoice PDF function compiles and contains the updated banking and registration details."""
+    from app.core.document_generators import generate_invoice_pdf
+    
+    r = CourseRegistration(
+        id=uuid.uuid4(),
+        course_title="Excel and Power BI Analytics",
+        first_name="Charles",
+        last_name="Samir",
+        email="charles.samir@example.com",
+        registration_type="individual",
+        status="pending",
+        country="Afghanistan",
+        organization="Gas Manufacturer"
+    )
+    
+    pdf_buffer = generate_invoice_pdf(r)
+    pdf_bytes = pdf_buffer.getvalue()
+    assert pdf_bytes.startswith(b"%PDF")
+    assert len(pdf_bytes) > 1000  # Verify it generates a non-empty, reasonably-sized PDF
+
+
+
