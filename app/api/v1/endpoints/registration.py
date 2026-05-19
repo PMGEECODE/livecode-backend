@@ -127,94 +127,94 @@ def _lead_email_html(reg_obj, member_count: int = 0) -> str:
 async def process_registration_email(registration_dict: dict, course_dict: dict = None):
     """
     Background task that:
-    1. Generates all three documents for the lead registrant and emails them.
-    2. For group registrations, generates personalized Invitation Letter + Evaluation
-       Form for each member and emails them individually.
+    1. Parses group members (if any).
+    2. Generates ONE shared invoice (with all participant names) and personal docs for lead.
+    3. Sends the lead registrant all 3 documents.
+    4. For each group member, generates personal Invitation Letter + Evaluation Form
+       and sends them all 3 documents (reusing the shared invoice PDF).
+    5. Sends a company notification email with a registration summary.
     """
+    from app.core.config import settings as _settings
+
     reg_obj = _build_reg_obj(registration_dict)
     course_obj = _build_course_obj(course_dict)
 
-    # --- Generate docs for lead registrant ---
-    invoice_buffer = await asyncio.to_thread(generate_invoice_pdf, reg_obj, course_obj)
-    invitation_buffer = await asyncio.to_thread(generate_invitation_letter_pdf, reg_obj, course_obj)
-    pre_form_buffer = await asyncio.to_thread(generate_pre_training_form_docx, reg_obj, course_obj)
-
-    # Parse group members if this is a group registration
+    # --- Parse group members ---
     group_members: list[dict] = []
     raw_members = registration_dict.get("group_members_json")
     if raw_members:
         try:
             group_members = _json.loads(raw_members)
         except (_json.JSONDecodeError, TypeError):
-            _logger.warning("Could not parse group_members_json for registration %s", registration_dict.get("id"))
+            _logger.warning(
+                "Could not parse group_members_json for registration %s",
+                registration_dict.get("id"),
+            )
 
-    # --- Send lead registrant email ---
-    lead_attachments = [
-        {
-            "filename": f"Invoice_INV-{str(reg_obj.id)[:8].upper()}.pdf",
-            "content": invoice_buffer.getvalue(),
-            "maintype": "application",
-            "subtype": "pdf",
-        },
-        {
-            "filename": "Invitation_Letter.pdf",
-            "content": invitation_buffer.getvalue(),
-            "maintype": "application",
-            "subtype": "pdf",
-        },
-        {
-            "filename": "Pre-Training_Evaluation_Form.docx",
-            "content": pre_form_buffer.getvalue(),
-            "maintype": "application",
-            "subtype": "vnd.openxmlformats-officedocument.wordprocessingml.document",
-        },
-    ]
+    # --- Generate shared invoice (includes all participant names for group regs) ---
+    invoice_buffer = await asyncio.to_thread(
+        generate_invoice_pdf, reg_obj, course_obj, group_members or None
+    )
+    invoice_bytes = invoice_buffer.getvalue()
+    invoice_filename = f"Invoice_INV-{str(reg_obj.id)[:8].upper()}.pdf"
+
+    shared_invoice_attachment = {
+        "filename": invoice_filename,
+        "content": invoice_bytes,
+        "maintype": "application",
+        "subtype": "pdf",
+    }
+
+    def _build_doc_attachments(invitation_buf, form_buf) -> list[dict]:
+        """Return the 3 standard attachment dicts, sharing the one invoice."""
+        return [
+            shared_invoice_attachment,
+            {
+                "filename": "Invitation_Letter.pdf",
+                "content": invitation_buf.getvalue(),
+                "maintype": "application",
+                "subtype": "pdf",
+            },
+            {
+                "filename": "Pre-Training_Evaluation_Form.docx",
+                "content": form_buf.getvalue(),
+                "maintype": "application",
+                "subtype": "vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+        ]
+
+    # --- Generate & send lead registrant email ---
+    lead_invitation = await asyncio.to_thread(generate_invitation_letter_pdf, reg_obj, course_obj)
+    lead_form = await asyncio.to_thread(generate_pre_training_form_docx, reg_obj, course_obj)
 
     subject = f"Registration Confirmation – {reg_obj.course_title}"
     await send_email_async(
         reg_obj.email,
         subject,
         _lead_email_html(reg_obj, member_count=len(group_members)),
-        lead_attachments,
+        _build_doc_attachments(lead_invitation, lead_form),
     )
+    _logger.info("Sent lead email to %s", reg_obj.email)
 
-    # --- Send individual emails to each group member ---
+    # --- Send all 3 docs individually to each group member ---
     for member in group_members:
         member_email = member.get("email")
         if not member_email:
             continue
 
-        # Build a member-flavored registration object for document generation
         member_reg_dict = {**registration_dict}
         member_reg_dict["first_name"] = member.get("first_name", "")
         member_reg_dict["last_name"] = member.get("last_name", "")
         member_reg_dict["title"] = member.get("title", "")
         member_reg_dict["phone"] = member.get("phone", "")
         member_reg_dict["email"] = member_email
-        # Exclude group-specific fields so the generators treat this as an individual
         member_reg_dict["registration_type"] = "individual"
         member_reg_dict["group_size"] = None
         member_reg_dict["group_members_json"] = None
 
         member_obj = _build_reg_obj(member_reg_dict)
-
         member_invitation = await asyncio.to_thread(generate_invitation_letter_pdf, member_obj, course_obj)
         member_form = await asyncio.to_thread(generate_pre_training_form_docx, member_obj, course_obj)
-
-        member_attachments = [
-            {
-                "filename": "Invitation_Letter.pdf",
-                "content": member_invitation.getvalue(),
-                "maintype": "application",
-                "subtype": "pdf",
-            },
-            {
-                "filename": "Pre-Training_Evaluation_Form.docx",
-                "content": member_form.getvalue(),
-                "maintype": "application",
-                "subtype": "vnd.openxmlformats-officedocument.wordprocessingml.document",
-            },
-        ]
 
         member_name = f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
         member_subject = f"Training Registration – {reg_obj.course_title}"
@@ -222,9 +222,47 @@ async def process_registration_email(registration_dict: dict, course_dict: dict 
             member_email,
             member_subject,
             _member_email_html(member_name, reg_obj.course_title, salutation=member.get("title", "")),
-            member_attachments,
+            _build_doc_attachments(member_invitation, member_form),
         )
-        _logger.info("Sent member email to %s for registration %s", member_email, registration_dict.get("id"))
+        _logger.info("Sent member email to %s", member_email)
+
+    # --- Company notification email ---
+    company_email = _settings.COMPANY_NOTIFICATION_EMAIL
+    if company_email:
+        total_participants = 1 + len(group_members)
+        reg_type = registration_dict.get("registration_type", "individual")
+        member_rows = "".join(
+            f"<tr><td style='padding:4px 8px'>{m.get('first_name','')} {m.get('last_name','')}</td>"
+            f"<td style='padding:4px 8px'>{m.get('email','')}</td></tr>"
+            for m in group_members
+        )
+        group_section = (
+            f"<h4 style='margin-top:16px'>Group Members</h4>"
+            f"<table border='1' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:13px'>"
+            f"<tr style='background:#0F2942;color:white'><th style='padding:5px 10px'>Name</th><th style='padding:5px 10px'>Email</th></tr>"
+            f"{member_rows}</table>"
+        ) if group_members else ""
+
+        company_html = f"""
+        <html><body style="font-family:Arial,sans-serif;color:#333;padding:20px">
+          <h2 style="color:#0F2942">📋 New Course Registration</h2>
+          <table style="font-size:14px;border-collapse:collapse;width:100%;max-width:600px">
+            <tr><td style="padding:5px 10px"><b>Course:</b></td><td style="padding:5px 10px">{reg_obj.course_title}</td></tr>
+            <tr style="background:#F7FAFC"><td style="padding:5px 10px"><b>Type:</b></td><td style="padding:5px 10px">{reg_type.title()} ({total_participants} participant(s))</td></tr>
+            <tr><td style="padding:5px 10px"><b>Lead Registrant:</b></td><td style="padding:5px 10px">{(reg_obj.title or '').strip()} {reg_obj.first_name} {reg_obj.last_name}</td></tr>
+            <tr style="background:#F7FAFC"><td style="padding:5px 10px"><b>Organisation:</b></td><td style="padding:5px 10px">{registration_dict.get('organization') or 'N/A'}</td></tr>
+            <tr><td style="padding:5px 10px"><b>Country:</b></td><td style="padding:5px 10px">{registration_dict.get('country') or 'N/A'}</td></tr>
+            <tr style="background:#F7FAFC"><td style="padding:5px 10px"><b>Email:</b></td><td style="padding:5px 10px">{reg_obj.email}</td></tr>
+            <tr><td style="padding:5px 10px"><b>Phone:</b></td><td style="padding:5px 10px">{registration_dict.get('phone') or 'N/A'}</td></tr>
+            <tr style="background:#F7FAFC"><td style="padding:5px 10px"><b>Schedule:</b></td><td style="padding:5px 10px">{registration_dict.get('schedule_date') or 'N/A'} – {registration_dict.get('schedule_location') or 'N/A'}</td></tr>
+          </table>
+          {group_section}
+          <p style="color:#999;font-size:12px;margin-top:24px">Automated notification · Livecode Technologies registration system</p>
+        </body></html>
+        """
+        notify_subject = f"[New Registration] {reg_obj.course_title} – {reg_obj.first_name} {reg_obj.last_name}"
+        await send_email_async(company_email, notify_subject, company_html, [shared_invoice_attachment])
+        _logger.info("Sent company notification to %s", company_email)
 
 
 

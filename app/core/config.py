@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     EMAILS_FROM_EMAIL: str = "info@livecodetechnologies.com"
     EMAILS_FROM_NAME: str = "Livecode Technologies"
+    COMPANY_NOTIFICATION_EMAIL: str = ""
 
     # Security & CORS
     # Stored as a raw str to prevent pydantic-settings from attempting

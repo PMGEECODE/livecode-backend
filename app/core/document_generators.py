@@ -112,7 +112,7 @@ def get_registration_details(registration, course=None):
     }
 
 
-def generate_invoice_pdf(registration, course=None) -> io.BytesIO:
+def generate_invoice_pdf(registration, course=None, group_members: list | None = None) -> io.BytesIO:
     """Dynamically generates a beautiful, 3-page professional invoice PDF using ReportLab."""
     details = get_registration_details(registration, course)
     
@@ -280,7 +280,67 @@ def generate_invoice_pdf(registration, course=None) -> io.BytesIO:
         ('LINEABOVE', (2,2), (3,-1), 1, border_color),
     ]))
     story.append(items_table)
-    story.append(Spacer(1, 30))
+    story.append(Spacer(1, 20))
+
+    # --- Participants List (group registrations) ---
+    if group_members:
+        participants_header = Paragraph("<b>GROUP PARTICIPANTS</b>", ParagraphStyle(
+            'ParticipantsHead', parent=body_style, fontName='Helvetica-Bold',
+            textColor=primary_color, fontSize=10
+        ))
+        story.append(participants_header)
+        story.append(Spacer(1, 6))
+
+        # Build lead row + member rows
+        all_participants = [{
+            "title": registration.title or "",
+            "first_name": details["first_name"],
+            "last_name": details["last_name"],
+            "email": details["email"],
+            "role": "Lead Registrant"
+        }]
+        for m in group_members:
+            all_participants.append({
+                "title": m.get("title", ""),
+                "first_name": m.get("first_name", ""),
+                "last_name": m.get("last_name", ""),
+                "email": m.get("email", ""),
+                "role": "Participant"
+            })
+
+        p_table_data = [
+            [
+                Paragraph("#", header_cell_style),
+                Paragraph("Name", header_cell_style),
+                Paragraph("Email", header_cell_style),
+                Paragraph("Role", header_cell_style),
+            ]
+        ]
+        for idx, p in enumerate(all_participants, start=1):
+            full_name = f"{p['title']} {p['first_name']} {p['last_name']}".strip()
+            p_table_data.append([
+                Paragraph(str(idx), body_style),
+                Paragraph(full_name, body_style),
+                Paragraph(p["email"], body_style),
+                Paragraph(p["role"], body_style),
+            ])
+
+        p_table = Table(p_table_data, colWidths=[24, 190, 190, 84])
+        p_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), primary_color),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.4, border_color),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, bg_light]),
+        ]))
+        story.append(p_table)
+        story.append(Spacer(1, 20))
+    else:
+        story.append(Spacer(1, 10))
 
     # Banking Details Card
     bank_data = [
