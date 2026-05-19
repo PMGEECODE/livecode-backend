@@ -16,41 +16,53 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def check_db_health():
-    try:
-        # 1. Log sanitized DATABASE_URL
-        db_url = str(engine.url)
-        # Handle asyncpg urls which usually contain the password
-        if ":" in db_url and "@" in db_url:
-            # Simple sanitization: keep driver and host, hide credentials
-            parts = db_url.split("@")
-            prefix = parts[0].split(":")[0] + "://****:****"
-            db_url_sanitized = f"{prefix}@{parts[1]}"
-        else:
-            db_url_sanitized = db_url
-            
-        logger.info(f"🔍 Checking database connection: {db_url_sanitized}")
+    import asyncio
 
-        # 2. Test Connection
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-            logger.info("✅ Database connection established successfully.")
+    db_url = str(engine.url)
+    if ":" in db_url and "@" in db_url:
+        parts = db_url.split("@")
+        prefix = parts[0].split(":")[0] + "://****:****"
+        db_url_sanitized = f"{prefix}@{parts[1]}"
+    else:
+        db_url_sanitized = db_url
 
-            # 3. Check Migrations
-            def get_migration_status(connection):
-                alembic_cfg = Config("alembic.ini")
-                script_dir = script.ScriptDirectory.from_config(alembic_cfg)
-                context = migration.MigrationContext.configure(connection)
-                return context.get_current_revision(), script_dir.get_current_head()
+    logger.info("🔍 Checking database connection: %s", db_url_sanitized)
 
-            current_rev, head_rev = await conn.run_sync(get_migration_status)
-            
-            if current_rev == head_rev:
-                logger.info(f"🚀 Database migrations are UP TO DATE (Revision: {current_rev})")
-            else:
-                logger.warning(f"⚠️  Database migrations are OUT OF SYNC! (Current: {current_rev}, Head: {head_rev})")
-                
-    except Exception as e:
-        logger.error("❌ Database health check failed: %s", repr(e))
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):          # up to 3 attempts
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                logger.info("✅ Database connection established successfully.")
+
+                def get_migration_status(connection):
+                    alembic_cfg = Config("alembic.ini")
+                    script_dir = script.ScriptDirectory.from_config(alembic_cfg)
+                    context = migration.MigrationContext.configure(connection)
+                    return context.get_current_revision(), script_dir.get_current_head()
+
+                current_rev, head_rev = await conn.run_sync(get_migration_status)
+
+                if current_rev == head_rev:
+                    logger.info("🚀 Database migrations are UP TO DATE (Revision: %s)", current_rev)
+                else:
+                    logger.warning(
+                        "⚠️  Database migrations are OUT OF SYNC! (Current: %s, Head: %s)",
+                        current_rev, head_rev,
+                    )
+            return  # success — exit the retry loop
+
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 3:
+                wait = attempt * 3   # 3 s, 6 s
+                logger.warning(
+                    "⚠️  DB connect attempt %d/3 failed (%s). Retrying in %d s…",
+                    attempt, repr(exc), wait,
+                )
+                await asyncio.sleep(wait)
+
+    logger.error("❌ Database health check failed after 3 attempts: %s", repr(last_exc))
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
