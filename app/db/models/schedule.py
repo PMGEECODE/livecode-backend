@@ -8,6 +8,8 @@ class Schedule(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     course_id = Column(UUID(as_uuid=True), ForeignKey("course.id"), nullable=False)
     date_range = Column(String, nullable=False)  # e.g., "18 May – 29 May"
+    start_date = Column(String, nullable=True)   # e.g., "2026-05-18"
+    end_date = Column(String, nullable=True)     # e.g., "2026-05-29"
     location = Column(String, nullable=False)    # e.g., "Kisumu", "Nairobi", "Online"
     mode = Column(String, nullable=False)        # "physical" or "virtual"
     price_kes = Column(Float, nullable=True)

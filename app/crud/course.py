@@ -43,15 +43,23 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
             # 1. Find the next upcoming schedule
             upcoming = []
             for s in course.schedules:
-                parts = re.split(r'\s+(?:-|–)\s+', s.date_range)
-                dt_end = self._parse_datetime(parts[-1], end_of_day=True)
+                dt_start, dt_end = None, None
+                if s.start_date and s.end_date:
+                    dt_start = self._parse_datetime(s.start_date)
+                    dt_end = self._parse_datetime(s.end_date, end_of_day=True)
+                
+                if not dt_start or not dt_end:
+                    parts = re.split(r'\s+(?:-|–)\s+', s.date_range or "")
+                    if parts and parts[-1]:
+                        dt_end = self._parse_datetime(parts[-1], end_of_day=True)
+                        if len(parts) > 1 and parts[0]:
+                            dt_start = self._parse_datetime(parts[0])
+                            if not dt_start:
+                                year_match = re.search(r'\d{4}', parts[-1])
+                                if year_match:
+                                    dt_start = self._parse_datetime(f"{parts[0]} {year_match.group()}")
+
                 if dt_end and dt_end >= now:
-                    dt_start = self._parse_datetime(parts[0])
-                    if not dt_start and len(parts) > 1:
-                        year_match = re.search(r'\d{4}', parts[-1])
-                        if year_match:
-                            dt_start = self._parse_datetime(f"{parts[0]} {year_match.group()}")
-                    
                     upcoming.append({
                         "start": dt_start or dt_end,
                         "end": dt_end,
