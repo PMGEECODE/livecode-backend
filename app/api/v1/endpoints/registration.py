@@ -151,6 +151,14 @@ async def process_registration_email(registration_dict: dict, course_dict: dict 
                 registration_dict.get("id"),
             )
 
+    # Filter out the lead registrant (billing contact) from group_members if they were included
+    # (matching case-insensitively by email) to prevent duplication in invoices and emails.
+    lead_email = (reg_obj.email or "").strip().lower()
+    group_members = [
+        m for m in group_members
+        if (m.get("email") or "").strip().lower() != lead_email
+    ]
+
     # --- Generate shared invoice (includes all participant names for group regs) ---
     invoice_buffer = await asyncio.to_thread(
         generate_invoice_pdf, reg_obj, course_obj, group_members or None

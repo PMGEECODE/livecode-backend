@@ -300,6 +300,10 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
             "role": "Lead Registrant"
         }]
         for m in group_members:
+            m_email = (m.get("email") or "").strip().lower()
+            lead_email = (details["email"] or "").strip().lower()
+            if m_email == lead_email:
+                continue
             all_participants.append({
                 "title": m.get("title", ""),
                 "first_name": m.get("first_name", ""),
