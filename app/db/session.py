@@ -12,8 +12,11 @@ engine = create_async_engine(
     max_overflow=10,
     # Wait up to 30 s for a free connection before raising
     pool_timeout=30,
-    # asyncpg-level connect timeout (10 s) — prevents indefinite hangs
-    connect_args={"timeout": 10},
+    # asyncpg-level connect timeout (10 s) — prevents indefinite hangs.
+    # ssl=False: skip SSL negotiation; the remote DB does not have SSL enabled.
+    # Without this, asyncpg tries SSL first, hangs on the handshake, and raises
+    # CancelledError / TimeoutError instead of a clean connection refused.
+    connect_args={"timeout": 10, "ssl": False},
 )
 
 SessionLocal = async_sessionmaker(

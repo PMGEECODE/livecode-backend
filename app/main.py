@@ -50,7 +50,7 @@ async def check_db_health():
                 logger.warning(f"⚠️  Database migrations are OUT OF SYNC! (Current: {current_rev}, Head: {head_rev})")
                 
     except Exception as e:
-        logger.error(f"❌ Database health check failed: {str(e)}")
+        logger.error("❌ Database health check failed: %s", repr(e))
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
