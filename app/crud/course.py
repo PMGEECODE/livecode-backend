@@ -109,7 +109,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
                         elif label == 'cut off date':
                             row[1] = format_dt(start_dt - timedelta(days=4))
                         elif label == 'individual price':
-                            row[1] = f"ksh: {int(next_sched.price_kes or 0):,} USD: {int(next_sched.price_usd or 0):,}"
+                            row[1] = f"KES: {int(next_sched.price_kes or 0):,} USD: {int(next_sched.price_usd or 0):,}"
                         elif label == 'location':
                             row[1] = next_sched.location
                         elif label == 'registered':
