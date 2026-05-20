@@ -45,8 +45,8 @@ class CourseRegistration(Base):
     # Currency selection (USD or KES)
     currency = Column(String, nullable=True, default="USD")
 
-    # Status
-    status = Column(String, nullable=False, default="pending")  # pending | confirmed | cancelled
+    # Status — indexed because it is used in WHERE filters (pending count queries, dashboard, etc.)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | confirmed | cancelled
 
     def __init__(
         self,

@@ -6,7 +6,7 @@ from app.db.base_class import Base
 
 class Schedule(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    course_id = Column(UUID(as_uuid=True), ForeignKey("course.id"), nullable=False)
+    course_id = Column(UUID(as_uuid=True), ForeignKey("course.id"), nullable=False, index=True)
     date_range = Column(String, nullable=False)  # e.g., "18 May – 29 May"
     location = Column(String, nullable=False)    # e.g., "Kisumu", "Nairobi", "Online"
     mode = Column(String, nullable=False)        # "physical" or "virtual"

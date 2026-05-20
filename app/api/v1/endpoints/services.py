@@ -1,7 +1,7 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from app import crud, schemas
+from app import crud, schemas, models
 from app.api import deps
 
 router = APIRouter()
@@ -23,6 +23,7 @@ async def create_service(
     *,
     db: AsyncSession = Depends(deps.get_db),
     service_in: schemas.ServiceCreate,
+    current_user: models.User = Depends(deps.get_current_active_superuser),
 ) -> Any:
     """
     Create new service.

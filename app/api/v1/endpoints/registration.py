@@ -22,8 +22,9 @@ import asyncio
 from fastapi import BackgroundTasks
 from app.core.email import send_email_async
 
-import json as _json
+from app.core.redis import redis_manager
 import logging as _logging
+import json as _json
 
 _logger = _logging.getLogger(__name__)
 
@@ -434,6 +435,9 @@ async def submit_registration(
 
     background_tasks.add_task(process_registration_email, reg_dict, course_dict)
 
+    # Invalidate dashboard cache
+    await redis_manager.delete_pattern("dashboard:*")
+
     return RegistrationResponse(
         id=str(registration.id),
         status=registration.status,
@@ -526,6 +530,10 @@ async def update_registration_status(
     db.add(registration)
     await db.commit()
     await db.refresh(registration)
+    
+    # Invalidate dashboard cache
+    await redis_manager.delete_pattern("dashboard:*")
+    
     return {
         "id": str(registration.id),
         "status": registration.status,
@@ -557,6 +565,10 @@ async def delete_registration(
         
     await db.delete(registration)
     await db.commit()
+    
+    # Invalidate dashboard cache
+    await redis_manager.delete_pattern("dashboard:*")
+    
     return {"message": "Registration deleted successfully"}
 
 

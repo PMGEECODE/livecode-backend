@@ -62,8 +62,9 @@ async def create_course(
         )
     new_course = await crud.course.create(db, obj_in=course_in)
     
-    # Invalidate cached catalogs and details
+    # Invalidate cached catalogs, details, and dashboard stats
     await redis_manager.delete_pattern("courses:*")
+    await redis_manager.delete_pattern("dashboard:*")
     
     await sse_manager.broadcast("courses_updated", {"action": "create", "id": str(new_course.id)})
     return new_course
@@ -122,8 +123,9 @@ async def update_course(
         )
     updated_course = await crud.course.update(db, db_obj=course, obj_in=course_in)
     
-    # Invalidate cached catalogs and details
+    # Invalidate cached catalogs, details, and dashboard stats
     await redis_manager.delete_pattern("courses:*")
+    await redis_manager.delete_pattern("dashboard:*")
     
     await sse_manager.broadcast("courses_updated", {"action": "update", "id": str(updated_course.id)})
     return updated_course
@@ -146,8 +148,9 @@ async def delete_course(
         )
     removed_course = await crud.course.remove(db, id=id)
     
-    # Invalidate cached catalogs and details
+    # Invalidate cached catalogs, details, and dashboard stats
     await redis_manager.delete_pattern("courses:*")
+    await redis_manager.delete_pattern("dashboard:*")
     
     await sse_manager.broadcast("courses_updated", {"action": "delete", "id": str(id)})
     return removed_course

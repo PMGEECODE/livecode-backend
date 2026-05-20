@@ -68,14 +68,21 @@ class RedisManager:
             return False
 
     async def delete_pattern(self, pattern: str) -> bool:
-        """Delete all keys matching a specific pattern (e.g. 'courses:*') safely."""
+        """Delete all keys matching a specific pattern safely using SCAN (non-blocking)."""
         if not self.client:
             return False
         try:
-            keys = await self.client.keys(pattern)
-            if keys:
-                await self.client.delete(*keys)
-                logger.info("🧹 Evicted %d cached keys matching pattern: %s", len(keys), pattern)
+            deleted = 0
+            cursor: int = 0
+            while True:
+                cursor, keys = await self.client.scan(cursor=cursor, match=pattern, count=100)
+                if keys:
+                    await self.client.delete(*keys)
+                    deleted += len(keys)
+                if cursor == 0:
+                    break
+            if deleted:
+                logger.info("🧹 Evicted %d cached keys matching pattern: %s", deleted, pattern)
             return True
         except Exception as e:
             logger.warning("⚠️ Redis DELETE pattern error for pattern %s: %s", pattern, repr(e))

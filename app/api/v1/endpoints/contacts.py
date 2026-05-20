@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud, schemas
 from app.api import deps
 from app.core.limiter import limiter
+from app.core.redis import redis_manager
 import uuid
 
 router = APIRouter()
@@ -20,7 +21,9 @@ async def create_contact(
     """
     Create new contact message.
     """
-    return await crud.contact.create(db, obj_in=contact_in)
+    new_contact = await crud.contact.create(db, obj_in=contact_in)
+    await redis_manager.delete_pattern("dashboard:*")
+    return new_contact
 
 @router.get("/", response_model=List[schemas.Contact])
 async def read_contacts(
@@ -50,6 +53,7 @@ async def update_contact(
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     contact = await crud.contact.update(db, db_obj=contact, obj_in=contact_in)
+    await redis_manager.delete_pattern("dashboard:*")
     return contact
 
 @router.delete("/{id}", response_model=schemas.Contact)
@@ -66,4 +70,5 @@ async def delete_contact(
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     contact = await crud.contact.remove(db, id=id)
+    await redis_manager.delete_pattern("dashboard:*")
     return contact

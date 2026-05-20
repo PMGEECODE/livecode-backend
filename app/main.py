@@ -81,6 +81,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from fastapi.middleware.gzip import GZipMiddleware
+# Enable GZIP compression for responses > 1000 bytes to reduce payload size and network latency
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Set all CORS enabled origins
 origins = [str(origin).strip() for origin in settings.cors_origins if str(origin).strip()]
 

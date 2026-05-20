@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud, schemas, models
 from app.api import deps
 from app.core.limiter import limiter
+from app.core.redis import redis_manager
 
 router = APIRouter()
 
@@ -38,7 +39,9 @@ async def create_blog_post(
             status_code=400,
             detail="The blog post with this slug already exists in the system.",
         )
-    return await crud.blog_post.create(db, obj_in=post_in)
+    new_post = await crud.blog_post.create(db, obj_in=post_in)
+    await redis_manager.delete_pattern("dashboard:*")
+    return new_post
 
 @router.get("/{slug}", response_model=schemas.BlogPost)
 @limiter.limit("60/minute")

@@ -33,7 +33,7 @@ class CourseLogistics(Base):
 class CourseBlock(Base):
     __tablename__ = "course_block"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    course_id = Column(UUID(as_uuid=True), ForeignKey("course.id"), nullable=False)
+    course_id = Column(UUID(as_uuid=True), ForeignKey("course.id"), nullable=False, index=True)
     type = Column(String, nullable=False)  # paragraph, list, table, subheading, etc.
     content = Column(JSON, nullable=False) # Stores the block data
     order_index = Column(Integer, nullable=False)
