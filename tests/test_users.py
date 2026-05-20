@@ -108,3 +108,28 @@ async def test_create_user_authenticated(authenticated_client: AsyncClient):
     assert data["email"] == "newuser@example.com"
     assert data["full_name"] == "New User"
     assert "id" in data
+
+
+# ─── C) BROWSER VS API ERROR RESPONSE TESTS ───
+
+@pytest.mark.asyncio
+async def test_error_response_html_for_browsers(unauthenticated_client: AsyncClient):
+    """Verify that unauthenticated browser requests get the custom error HTML page."""
+    headers = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9"}
+    response = await unauthenticated_client.get("/api/v1/users/", headers=headers)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "text/html" in response.headers["content-type"]
+    html_content = response.text
+    assert "401" in html_content
+    assert "Not Authenticated" in html_content
+    assert "You are not authenticated to view this page" in html_content
+
+@pytest.mark.asyncio
+async def test_error_response_json_for_apis(unauthenticated_client: AsyncClient):
+    """Verify that unauthenticated API requests get a standard JSON error response."""
+    headers = {"accept": "application/json"}
+    response = await unauthenticated_client.get("/api/v1/users/", headers=headers)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "application/json" in response.headers["content-type"]
+    assert response.json()["detail"] == "Not authenticated"
+

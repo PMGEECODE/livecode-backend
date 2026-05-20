@@ -137,23 +137,48 @@ from fastapi.responses import JSONResponse
 
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
-    if exc.status_code == 404:
-        accept_header = request.headers.get("accept", "")
-        
-        # If it's a direct API request expecting JSON, return JSON.
-        # But if a user visits ANY 404 route in a browser (which accepts text/html), show the custom page.
-        if "text/html" not in accept_header and request.url.path.startswith(settings.API_V1_STR):
-            return JSONResponse({"detail": exc.detail}, status_code=404)
-        
-        # Serve the HTML template
-        return templates.TemplateResponse(
-            request=request, 
-            name="404.html", 
-            context={"year": datetime.now().year}, 
-            status_code=404
-        )
+    accept_header = request.headers.get("accept", "")
     
-    # Fallback to default JSON error for all other exception types
+    # If the browser accepts HTML, serve HTML templates
+    if "text/html" in accept_header:
+        if exc.status_code == 404:
+            return templates.TemplateResponse(
+                request=request, 
+                name="404.html", 
+                context={"year": datetime.now().year}, 
+                status_code=404
+            )
+        else:
+            # Determine Title and detail description for error page
+            title = "An Error Occurred"
+            detail_msg = exc.detail
+            
+            if exc.status_code == 401:
+                title = "Not Authenticated"
+                if not detail_msg or detail_msg == "Not authenticated":
+                    detail_msg = "You are not authenticated to view this page. Please log in first."
+            elif exc.status_code == 403:
+                title = "Access Forbidden"
+                if not detail_msg:
+                    detail_msg = "You do not have the necessary permissions to access this resource."
+            elif exc.status_code == 500:
+                title = "Internal Server Error"
+                if not detail_msg:
+                    detail_msg = "An internal server error occurred. Please try again later."
+            
+            return templates.TemplateResponse(
+                request=request,
+                name="error.html",
+                context={
+                    "status_code": exc.status_code,
+                    "title": title,
+                    "detail": detail_msg,
+                    "year": datetime.now().year
+                },
+                status_code=exc.status_code
+            )
+            
+    # Fallback to default JSON error for all other requests (APIs/JSON-expecting requests)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 from fastapi.responses import FileResponse
