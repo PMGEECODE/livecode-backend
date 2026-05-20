@@ -114,6 +114,57 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-@app.get("/")
-async def root():
-    return {"message": "Welcome to Livecode Technologies API"}
+import os
+from fastapi import Request
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.templating import Jinja2Templates
+from datetime import datetime
+
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "..", "templates"))
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def root(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="index.html", context={"year": datetime.now().year}
+    )
+
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        accept_header = request.headers.get("accept", "")
+        
+        # If it's a direct API request expecting JSON, return JSON.
+        # But if a user visits ANY 404 route in a browser (which accepts text/html), show the custom page.
+        if "text/html" not in accept_header and request.url.path.startswith(settings.API_V1_STR):
+            return JSONResponse({"detail": exc.detail}, status_code=404)
+        
+        # Serve the HTML template
+        return templates.TemplateResponse(
+            request=request, 
+            name="404.html", 
+            context={"year": datetime.now().year}, 
+            status_code=404
+        )
+    
+    # Fallback to default JSON error for all other exception types
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+from fastapi.responses import FileResponse
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    file_path = os.path.join(os.path.dirname(__file__), "..", "static", "favicon.ico")
+    if not os.path.exists(file_path):
+        return {"message": "Favicon not found"}
+    return FileResponse(file_path, media_type="image/x-icon", headers={"Cache-Control": "public, max-age=31536000"})
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots():
+    file_path = os.path.join(os.path.dirname(__file__), "..", "static", "robots.txt")
+    if not os.path.exists(file_path):
+        return {"message": "robots.txt not found"}
+    return FileResponse(file_path, media_type="text/plain")
+

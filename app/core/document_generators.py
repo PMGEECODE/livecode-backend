@@ -226,11 +226,12 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
         Paragraph(f"<b>Email:</b> {details['email']}", body_style),
     ]
     
+    payment_method_val = getattr(registration, "payment_method", "Bank Transfer / Offline")
     meta_right = [
         Paragraph(f"<b>Invoice No:</b> {invoice_no}", body_style),
         Paragraph(f"<b>Date:</b> {date_today}", body_style),
         Paragraph(f"<b>Customer ID:</b> {cust_id}", body_style),
-        Paragraph(f"<b>Payment Method:</b> Bank Transfer / Offline", body_style),
+        Paragraph(f"<b>Payment Method:</b> {payment_method_val}", body_style),
     ]
 
     meta_table_data = [
@@ -361,66 +362,67 @@ def generate_invoice_pdf(registration, course=None, group_members: list | None =
     else:
         story.append(Spacer(1, 10))
 
-    # Banking Details Cards
-    bank_data_kes = [
-        [Paragraph("<b>KES BANK DETAILS (EFT/WIRE)</b>", ParagraphStyle('BankHeadKes', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
-        [Paragraph("<b>Account Name:</b>", body_style), Paragraph("Livecode Technologies Limited", body_style)],
-        [Paragraph("<b>Bank:</b>", body_style), Paragraph("Kenya Commercial Bank (KCB)", body_style)],
-        [Paragraph("<b>Branch:</b>", body_style), Paragraph("Mortgage Centre Sarit", body_style)],
-        [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCBLKENX", body_style)],
-        [Paragraph("<b>Account Number (KES):</b>", body_style), Paragraph("1253187703", body_style)],
-    ]
-    bank_table_kes = Table(bank_data_kes, colWidths=[100, 150])
-    bank_table_kes.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('SPAN', (0,0), (1,0)),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('BOX', (0,0), (-1,-1), 1, border_color),
-        ('LEFTPADDING', (0,0), (-1,-1), 10),
-        ('RIGHTPADDING', (0,0), (-1,-1), 10),
-        ('TOPPADDING', (0,0), (-1,0), 8),
-        ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
-    ]))
+    if payment_method_val == "Bank Transfer / Offline":
+        # Banking Details Cards
+        bank_data_kes = [
+            [Paragraph("<b>KES BANK DETAILS (EFT/WIRE)</b>", ParagraphStyle('BankHeadKes', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
+            [Paragraph("<b>Account Name:</b>", body_style), Paragraph("Livecode Technologies Limited", body_style)],
+            [Paragraph("<b>Bank:</b>", body_style), Paragraph("Kenya Commercial Bank (KCB)", body_style)],
+            [Paragraph("<b>Branch:</b>", body_style), Paragraph("Mortgage Centre Sarit", body_style)],
+            [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCBLKENX", body_style)],
+            [Paragraph("<b>Account Number (KES):</b>", body_style), Paragraph("1253187703", body_style)],
+        ]
+        bank_table_kes = Table(bank_data_kes, colWidths=[100, 150])
+        bank_table_kes.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), bg_light),
+            ('SPAN', (0,0), (1,0)),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('BOX', (0,0), (-1,-1), 1, border_color),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ('TOPPADDING', (0,0), (-1,0), 8),
+            ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
+        ]))
 
-    bank_data_usd = [
-        [Paragraph("<b>USD BANK DETAILS (EFT/WIRE)</b>", ParagraphStyle('BankHeadUsd', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
-        [Paragraph("<b>Account Name:</b>", body_style), Paragraph("LIVECODE TECHNOLOGIES LIMITED", body_style)],
-        [Paragraph("<b>Bank:</b>", body_style), Paragraph("Co-operative Bank of Kenya Ltd", body_style)],
-        [Paragraph("<b>Branch:</b>", body_style), Paragraph("Co-op House", body_style)],
-        [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCOOKENA", body_style)],
-        [Paragraph("<b>Account Number (USD):</b>", body_style), Paragraph("02100825826300", body_style)],
-    ]
-    bank_table_usd = Table(bank_data_usd, colWidths=[100, 150])
-    bank_table_usd.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('SPAN', (0,0), (1,0)),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('BOX', (0,0), (-1,-1), 1, border_color),
-        ('LEFTPADDING', (0,0), (-1,-1), 10),
-        ('RIGHTPADDING', (0,0), (-1,-1), 10),
-        ('TOPPADDING', (0,0), (-1,0), 8),
-        ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
-    ]))
+        bank_data_usd = [
+            [Paragraph("<b>USD BANK DETAILS (EFT/WIRE)</b>", ParagraphStyle('BankHeadUsd', parent=body_style, fontName='Helvetica-Bold', textColor=primary_color)), ""],
+            [Paragraph("<b>Account Name:</b>", body_style), Paragraph("LIVECODE TECHNOLOGIES LIMITED", body_style)],
+            [Paragraph("<b>Bank:</b>", body_style), Paragraph("Co-operative Bank of Kenya Ltd", body_style)],
+            [Paragraph("<b>Branch:</b>", body_style), Paragraph("Co-op House", body_style)],
+            [Paragraph("<b>Swift Code:</b>", body_style), Paragraph("KCOOKENA", body_style)],
+            [Paragraph("<b>Account Number (USD):</b>", body_style), Paragraph("02100825826300", body_style)],
+        ]
+        bank_table_usd = Table(bank_data_usd, colWidths=[100, 150])
+        bank_table_usd.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), bg_light),
+            ('SPAN', (0,0), (1,0)),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('BOX', (0,0), (-1,-1), 1, border_color),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ('TOPPADDING', (0,0), (-1,0), 8),
+            ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
+        ]))
 
-    if is_kes:
-        bank_parent_table = Table([[bank_table_kes]], colWidths=[250])
-    else:
-        bank_parent_table = Table([[bank_table_usd]], colWidths=[250])
-        
-    bank_parent_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0), (-1,-1), 0),
-        ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 0),
-    ]))
-    story.append(bank_parent_table)
-    story.append(Spacer(1, 20))
-    story.append(Paragraph("<b>Note:</b> All checks should be payable to: <i>Livecode Technologies Limited.</i><br/>Please send proof of payment to: <b>info@livecodetechnologies.com</b>", ParagraphStyle('NoteStyle', parent=body_style, fontSize=8.5)))
+        if is_kes:
+            bank_parent_table = Table([[bank_table_kes]], colWidths=[250])
+        else:
+            bank_parent_table = Table([[bank_table_usd]], colWidths=[250])
+
+        bank_parent_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
+        ]))
+        story.append(bank_parent_table)
+        story.append(Spacer(1, 20))
+        story.append(Paragraph("<b>Note:</b> All checks should be payable to: <i>Livecode Technologies Limited.</i><br/>Please send proof of payment to: <b>info@livecodetechnologies.com</b>", ParagraphStyle('NoteStyle', parent=body_style, fontSize=8.5)))
 
     story.append(PageBreak())
 

@@ -241,37 +241,51 @@ async def test_stripe_charge_success(mock_email, async_client: AsyncClient):
 
     body = {
         "registration_id": str(reg_id),
-        "token": "tok_visa",
+        "number": "4242424242424242",
+        "exp_month": "12",
+        "exp_year": "2030",
+        "cvc": "123",
         "amount": 100.0,
+        "currency": "usd"
     }
 
-    response = await async_client.post("/api/v1/payments/stripe/charge", json=body)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "success"
-    assert "stripe_" in data["checkout_request_id"]
+    # Patch stripe methods
+    with patch("stripe.Token.create") as mock_token, \
+         patch("stripe.Charge.create") as mock_charge:
+        mock_token.return_value.id = "tok_test123"
+        mock_charge.return_value.status = "succeeded"
+        mock_charge.return_value.id = "ch_test123"
+        mock_charge.return_value.receipt_url = "https://receipt.stripe.com/123"
 
-    # Verify transaction and registration state in DB
+        response = await async_client.post("/api/v1/payments/stripe/charge", json=body)
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+
+    # Verify db update
     async with TestingSessionLocal() as db:
         from sqlalchemy import select
-        res = await db.execute(select(PaymentTransaction).filter(PaymentTransaction.registration_id == reg_id))
-        tx = res.scalars().first()
-        assert tx is not None
-        assert tx.status == "completed"
-        assert tx.amount == 100.0
-
-        res_reg = await db.execute(select(CourseRegistration).filter(CourseRegistration.id == reg_id))
-        reg = res_reg.scalars().first()
+        res = await db.execute(select(CourseRegistration).filter(CourseRegistration.id == reg_id))
+        reg = res.scalars().first()
         assert reg.status == "confirmed"
 
+        tx_res = await db.execute(select(PaymentTransaction).filter(PaymentTransaction.registration_id == reg_id))
+        tx = tx_res.scalars().first()
+        assert tx is not None
+        assert tx.status == "completed"
+
+    mock_email.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_stripe_charge_not_found(async_client: AsyncClient):
     """Verify Stripe charge returns 404 if registration does not exist."""
     body = {
         "registration_id": str(uuid.uuid4()),
-        "token": "tok_visa",
+        "number": "4242424242424242",
+        "exp_month": "12",
+        "exp_year": "2030",
+        "cvc": "123",
         "amount": 100.0,
+        "currency": "usd"
     }
     response = await async_client.post("/api/v1/payments/stripe/charge", json=body)
     assert response.status_code == 404

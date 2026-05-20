@@ -30,8 +30,12 @@ class MpesaStatusResponse(BaseModel):
 
 class StripeChargeRequest(BaseModel):
     registration_id: UUID
-    token: str = Field(..., description="Stripe mock payment token")
+    number: str = Field(..., description="Card number")
+    exp_month: str = Field(..., description="Expiry month")
+    exp_year: str = Field(..., description="Expiry year")
+    cvc: str = Field(..., description="CVC")
     amount: float = Field(..., gt=0, description="Amount to be paid")
+    currency: str = Field(..., description="Currency (USD or KES)")
 
     model_config = {
         "extra": "forbid"
