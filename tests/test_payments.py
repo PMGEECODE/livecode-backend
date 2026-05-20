@@ -303,3 +303,101 @@ async def test_stripe_charge_validation_extra_fields(async_client: AsyncClient):
     response = await async_client.post("/api/v1/payments/stripe/charge", json=body)
     assert response.status_code == 422
 
+
+@pytest.mark.asyncio
+async def test_stripe_charge_idempotent(async_client: AsyncClient):
+    """Verify that attempting to charge an already confirmed registration returns success immediately without creating new charges."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="FastAPI Masterclass",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="confirmed",  # Already paid/confirmed
+        )
+        db.add(r)
+        await db.commit()
+
+    body = {
+        "registration_id": str(reg_id),
+        "number": "4242424242424242",
+        "exp_month": "12",
+        "exp_year": "2030",
+        "cvc": "123",
+        "amount": 100.0,
+        "currency": "usd"
+    }
+
+    response = await async_client.post("/api/v1/payments/stripe/charge", json=body)
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert "duplicate_" in response.json()["checkout_request_id"]
+
+
+@pytest.mark.asyncio
+async def test_initiate_stk_push_already_confirmed(async_client: AsyncClient):
+    """Verify that initiating STK Push for an already paid registration is rejected."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="FastAPI Masterclass",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="confirmed",
+        )
+        db.add(r)
+        await db.commit()
+
+    body = {
+        "registration_id": str(reg_id),
+        "phone_number": "0712345678",
+        "amount": 100.0
+    }
+    response = await async_client.post("/api/v1/payments/mpesa/stk-push", json=body)
+    assert response.status_code == 400
+    assert "already been paid" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_initiate_stk_push_deduplication(async_client: AsyncClient):
+    """Verify that concurrent or close consecutive STK push requests return the existing pending checkout ID."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="FastAPI Masterclass",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="pending",
+        )
+        t = PaymentTransaction(
+            registration_id=reg_id,
+            checkout_request_id="ws_CO_existing123",
+            merchant_request_id="merch_123",
+            amount=100.0,
+            phone_number="254712345678",
+            status="pending",
+        )
+        db.add_all([r, t])
+        await db.commit()
+
+    body = {
+        "registration_id": str(reg_id),
+        "phone_number": "0712345678",
+        "amount": 100.0
+    }
+    response = await async_client.post("/api/v1/payments/mpesa/stk-push", json=body)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["checkout_request_id"] == "ws_CO_existing123"
+    assert "already processing" in data["customer_message"]
+
+

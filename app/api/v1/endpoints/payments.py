@@ -55,6 +55,34 @@ async def initiate_stk_push(
             detail="Registration record not found.",
         )
 
+    # Idempotency check: if registration is already confirmed
+    if registration.status == "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This registration has already been paid and confirmed.",
+        )
+
+    # Check for existing pending transaction within the last 30 seconds to prevent duplicate pushes
+    from datetime import datetime, timedelta, timezone
+    now_utc = datetime.now(timezone.utc)
+    tx_stmt = select(PaymentTransaction).filter(
+        PaymentTransaction.registration_id == payload.registration_id,
+        PaymentTransaction.status == "pending"
+    )
+    tx_result = await db.execute(tx_stmt)
+    existing_txs = tx_result.scalars().all()
+    for tx in existing_txs:
+        tx_created = tx.created_at
+        if tx_created:
+            if tx_created.tzinfo is None:
+                tx_created = tx_created.replace(tzinfo=timezone.utc)
+            if now_utc - tx_created < timedelta(seconds=30):
+                return MpesaStkPushResponse(
+                    checkout_request_id=tx.checkout_request_id,
+                    merchant_request_id=tx.merchant_request_id or "",
+                    customer_message="Payment request is already processing. Please approve the prompt on your phone.",
+                )
+
     # 2. Trigger Safaricom STK Push
     try:
         response_data = await mpesa_service.initiate_stk_push(
@@ -292,6 +320,14 @@ async def stripe_charge(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Registration record not found.",
         )
+
+    # Idempotency check: if registration is already confirmed, return success without double charging
+    if registration.status == "confirmed":
+        return {
+            "status": "success",
+            "checkout_request_id": f"duplicate_{registration.id}",
+            "message": "Payment processed successfully.",
+        }
 
     # 2. Process payment with Stripe
     try:
