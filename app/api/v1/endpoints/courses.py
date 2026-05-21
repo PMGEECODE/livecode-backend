@@ -1,5 +1,5 @@
 import json
-from typing import Any, List
+from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +21,16 @@ async def read_courses(
     db: AsyncSession = Depends(deps.get_db),
     skip: int = 0,
     limit: int = 100,
+    category: Optional[str] = None,
+    sub_category: Optional[str] = None,
 ) -> Any:
     """
     Retrieve courses.
     """
-    cache_key = f"courses:list:skip={skip}:limit={limit}"
+    cache_key = (
+        "courses:list:"
+        f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}"
+    )
     cached_data = await redis_manager.get(cache_key)
     if cached_data:
         try:
@@ -33,7 +38,13 @@ async def read_courses(
         except Exception:
             pass
 
-    courses = await crud.course.get_multi(db, skip=skip, limit=limit)
+    courses = await crud.course.get_multi(
+        db,
+        skip=skip,
+        limit=limit,
+        category=category,
+        sub_category=sub_category,
+    )
     try:
         await redis_manager.set(
             cache_key,

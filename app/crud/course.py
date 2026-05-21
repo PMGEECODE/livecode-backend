@@ -145,10 +145,22 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         return None
 
     async def get_multi(
-        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        category: Optional[str] = None,
+        sub_category: Optional[str] = None,
     ) -> List[Course]:
+        query = select(Course)
+        if category:
+            query = query.filter(func.lower(Course.category) == category.strip().lower())
+        if sub_category:
+            query = query.filter(func.lower(Course.sub_category) == sub_category.strip().lower())
+
         result = await db.execute(
-            select(Course)
+            query
             .offset(skip)
             .limit(limit)
             .options(

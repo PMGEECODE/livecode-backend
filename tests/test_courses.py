@@ -219,6 +219,34 @@ async def test_list_courses_returns_sub_category(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_list_courses_can_filter_by_category_and_sub_category(async_client: AsyncClient):
+    """GET /courses/ supports navbar category/subcategory filters."""
+    await async_client.post("/api/v1/courses/", json={
+        "title": "ODK Basics",
+        "slug": "odk-basics",
+        "category": "Mobile Data Collection",
+        "sub_category": "ODK Training Courses",
+    })
+    await async_client.post("/api/v1/courses/", json={
+        "title": "KoBo Basics",
+        "slug": "kobo-basics",
+        "category": "Mobile Data Collection",
+        "sub_category": "KoBoToolbox Training Courses",
+    })
+
+    response = await async_client.get(
+        "/api/v1/courses/",
+        params={
+            "category": "Mobile Data Collection",
+            "sub_category": "ODK Training Courses",
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    courses = response.json()
+    assert [course["slug"] for course in courses] == ["odk-basics"]
+
+
+@pytest.mark.asyncio
 async def test_delete_course_route(async_client: AsyncClient):
     """DELETE /courses/{id} removes the course cleanly."""
     create_response = await async_client.post("/api/v1/courses/", json={
