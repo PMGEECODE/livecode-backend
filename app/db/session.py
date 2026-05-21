@@ -3,19 +3,21 @@ from app.core.config import settings
 
 engine = create_async_engine(
     settings.SQLALCHEMY_DATABASE_URI,
-    # Validate connections before use — drops stale connections silently
+    # Pre-ping every connection before use — drops silently stale/broken conns
     pool_pre_ping=True,
-    # Recycle connections after 10 minutes to prevent remote-DB timeouts
-    pool_recycle=600,
-    # Keep 5 persistent connections; allow 10 overflow under burst load
+    # Recycle connections after 5 minutes to avoid "connection closed" from idle timeouts
+    pool_recycle=300,
+    # 5 persistent + 10 overflow = 15 max concurrent connections
     pool_size=5,
     max_overflow=10,
-    # Wait up to 30 s for a free connection before raising
-    pool_timeout=30,
-    # asyncpg-level connect timeout (30 s) — the remote DB needs time to accept
-    # connections right after a uvicorn reload; 10 s was too aggressive.
-    # ssl=False: the remote DB does not have SSL enabled.
-    connect_args={"timeout": 30, "ssl": False},
+    # Fail fast (10 s) so the app returns 503 instead of hanging for 30 s
+    pool_timeout=10,
+    # asyncpg: TCP connect + statement timeout both set to 30 s
+    connect_args={
+        "timeout": 30,          # TCP/TLS handshake timeout (seconds)
+        "command_timeout": 60,  # Per-query execution timeout (seconds)
+        "ssl": False,
+    },
 )
 
 SessionLocal = async_sessionmaker(

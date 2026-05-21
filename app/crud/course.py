@@ -170,9 +170,9 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
 
     async def create(self, db: AsyncSession, *, obj_in: CourseCreate) -> Course:
         obj_in_data = jsonable_encoder(obj_in)
-        schedules_data = obj_in_data.pop("schedules", [])
+        schedules_data = obj_in_data.pop("schedules", None) or []
         logistics_data = obj_in_data.pop("logistics", None)
-        curriculum_blocks_data = obj_in_data.pop("curriculum_blocks", [])
+        curriculum_blocks_data = obj_in_data.pop("curriculum_blocks", None) or []
         
         db_obj = self.model(**obj_in_data)
         db.add(db_obj)

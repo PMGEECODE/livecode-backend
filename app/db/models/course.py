@@ -10,6 +10,7 @@ class Course(Base):
     slug = Column(String, unique=True, index=True, nullable=False)
     description = Column(Text, nullable=True)
     category = Column(String, index=True, nullable=False)
+    sub_category = Column(String, index=True, nullable=True)
     image_url = Column(String, nullable=True)
     
     # Relationships

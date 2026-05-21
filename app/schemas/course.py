@@ -65,6 +65,7 @@ class CourseBase(BaseModel):
     slug: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
+    sub_category: Optional[str] = None
     image_url: Optional[str] = None
 
 class CourseCreate(CourseBase):

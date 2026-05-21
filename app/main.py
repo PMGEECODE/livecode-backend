@@ -1,6 +1,6 @@
 import logging
 import contextlib
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from alembic.config import Config
@@ -116,9 +116,66 @@ from app.core.limiter import limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# ── Database connectivity exception handlers ─────────────────────────────────
+# asyncpg raises TimeoutError / CancelledError when it cannot establish or
+# acquire a connection within the configured timeout.  SQLAlchemy surfaces
+# these as OperationalError.  None of these are user errors — return 503 so
+# clients can retry, and log at ERROR level for observability.
+
+import asyncio
+from sqlalchemy.exc import OperationalError, TimeoutError as SATimeoutError
+from fastapi.responses import JSONResponse as _JSONResponse
+
+@app.exception_handler(asyncio.TimeoutError)
+async def asyncio_timeout_handler(request: Request, exc: asyncio.TimeoutError):
+    logger.error("DB connection timed out for %s %s", request.method, request.url.path)
+    return _JSONResponse(
+        status_code=503,
+        content={"detail": "Service temporarily unavailable. Please try again in a moment."},
+        headers={"Retry-After": "5"},
+    )
+
+@app.exception_handler(OperationalError)
+async def sqlalchemy_operational_handler(request: Request, exc: OperationalError):
+    logger.error("DB operational error for %s %s: %s", request.method, request.url.path, repr(exc))
+    return _JSONResponse(
+        status_code=503,
+        content={"detail": "Service temporarily unavailable. Please try again in a moment."},
+        headers={"Retry-After": "5"},
+    )
+
+@app.exception_handler(SATimeoutError)
+async def sqlalchemy_timeout_handler(request: Request, exc: SATimeoutError):
+    logger.error("DB timeout for %s %s: %s", request.method, request.url.path, repr(exc))
+    return _JSONResponse(
+        status_code=503,
+        content={"detail": "Service temporarily unavailable. Please try again in a moment."},
+        headers={"Retry-After": "5"},
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 import os
+# Ensure upload directory exists — NOT publicly mounted via StaticFiles.
+# Images are served exclusively through the validated /api/v1/media/uploads/ endpoint.
+os.makedirs("static/uploads", exist_ok=True)
+
+from fastapi.responses import RedirectResponse
+
+@app.get("/static/uploads/{slug}/{filename}", include_in_schema=False)
+async def legacy_static_redirect(slug: str, filename: str):
+    """
+    Backward-compatible redirect for image URLs stored in the DB before the
+    secure /media endpoint was introduced.  The redirect target goes through
+    the validated media router which enforces path- and extension-checks.
+    """
+    return RedirectResponse(
+        url=f"{settings.API_V1_STR}/media/uploads/{slug}/{filename}",
+        status_code=301,
+    )
+
 from fastapi import Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
