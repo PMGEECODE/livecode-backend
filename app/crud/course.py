@@ -1,5 +1,5 @@
 from typing import Optional, List, Union, Dict, Any
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from fastapi.encoders import jsonable_encoder
@@ -13,6 +13,12 @@ import re
 from datetime import datetime, timedelta
 
 class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
+    def _normalize_slug(self, slug: str) -> str:
+        normalized = slug.strip().lower()
+        normalized = re.sub(r"[\s_]+", "-", normalized)
+        normalized = re.sub(r"-{2,}", "-", normalized)
+        return normalized.strip("-")
+
     def _parse_datetime(self, date_str: str, end_of_day: bool = False) -> Optional[datetime]:
         if not date_str:
             return None
@@ -154,9 +160,14 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         return list(result.scalars().all())
 
     async def get_by_slug(self, db: AsyncSession, *, slug: str) -> Optional[Course]:
+        normalized_slug = self._normalize_slug(slug)
         result = await db.execute(
             select(Course)
-            .filter(Course.slug == slug)
+            .filter(
+                (Course.slug == slug)
+                | (func.lower(Course.slug) == normalized_slug)
+                | (func.lower(Course.slug) == slug.strip().lower())
+            )
             .options(
                 selectinload(Course.schedules),
                 selectinload(Course.logistics),

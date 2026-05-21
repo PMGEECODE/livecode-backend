@@ -161,6 +161,23 @@ async def test_read_course_by_slug(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_read_course_by_slug_is_case_insensitive(async_client: AsyncClient):
+    """GET /courses/{slug} resolves migrated slugs even when URL casing differs."""
+    payload = {
+        "title": "Climate Finance",
+        "slug": "Climate-Finance-Course",
+        "category": "Technical Courses",
+        "sub_category": "Finance Training Courses",
+    }
+    await async_client.post("/api/v1/courses/", json=payload)
+
+    response = await async_client.get("/api/v1/courses/climate-finance-course")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["slug"] == "Climate-Finance-Course"
+
+
+@pytest.mark.asyncio
 async def test_update_course_sub_category_only(async_client: AsyncClient):
     """PUT /courses/{id} with only sub_category leaves other fields intact (partial update)."""
     create_payload = {
