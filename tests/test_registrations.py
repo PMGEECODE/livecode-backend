@@ -44,12 +44,18 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 # Set client dependency override
-app.dependency_overrides[get_db] = override_get_db
-
 async def mock_superuser():
     return User(id=uuid.uuid4(), full_name="System Admin", email="admin@livecodetech.co.ke", hashed_password="hashed_pwd", is_active=True, is_superuser=True)  # type: ignore
 
-app.dependency_overrides[get_current_active_superuser] = mock_superuser
+@pytest_asyncio.fixture(autouse=True)
+async def setup_dependency_overrides():
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    yield
+    if get_db in app.dependency_overrides:
+        del app.dependency_overrides[get_db]
+    if get_current_active_superuser in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_superuser]
 
 
 

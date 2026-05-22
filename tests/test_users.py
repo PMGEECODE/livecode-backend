@@ -29,8 +29,12 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     async with TestingSessionLocal() as session:
         yield session
 
-# Set client dependency override
-app.dependency_overrides[get_db] = override_get_db
+@pytest_asyncio.fixture(autouse=True)
+async def setup_db_override():
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    if get_db in app.dependency_overrides:
+        del app.dependency_overrides[get_db]
 
 @pytest_asyncio.fixture
 async def unauthenticated_client() -> AsyncGenerator[AsyncClient, None]:

@@ -48,8 +48,16 @@ async def mock_superuser():
     )  # type: ignore
 
 
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_current_active_superuser] = mock_superuser
+@pytest_asyncio.fixture(autouse=True)
+async def setup_dependency_overrides():
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    yield
+    if get_db in app.dependency_overrides:
+        del app.dependency_overrides[get_db]
+    if get_current_active_superuser in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_superuser]
+
 
 
 @pytest_asyncio.fixture

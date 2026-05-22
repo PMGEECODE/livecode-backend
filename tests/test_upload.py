@@ -1,3 +1,5 @@
+import os
+import shutil
 import pytest
 import pytest_asyncio
 import uuid
@@ -20,8 +22,6 @@ TestingSessionLocal = async_sessionmaker(
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_test_db():
-    import os
-    import shutil
     upload_dir = "static/uploads"
     # Keep track of existing directories
     existing_dirs = set(os.listdir(upload_dir)) if os.path.exists(upload_dir) else set()
@@ -48,8 +48,12 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     async with TestingSessionLocal() as session:
         yield session
 
-# Set client dependency override
-app.dependency_overrides[get_db] = override_get_db
+@pytest_asyncio.fixture(autouse=True)
+async def setup_dependency_overrides():
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    if get_db in app.dependency_overrides:
+        del app.dependency_overrides[get_db]
 
 @pytest_asyncio.fixture
 async def unauthenticated_client() -> AsyncGenerator[AsyncClient, None]:
@@ -96,7 +100,7 @@ async def test_upload_valid_image(authenticated_client: AsyncClient):
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "url" in data
-    assert data["url"].startswith("/static/uploads/test-course/")
+    assert data["url"].startswith("/api/v1/media/uploads/test-course/")
     assert data["url"].endswith(".png")
 
 @pytest.mark.asyncio
@@ -147,10 +151,14 @@ async def test_upload_one_image_per_course(authenticated_client: AsyncClient):
     
     assert url1 != url2
     
-    # Verify the first image is deleted from the filesystem
-    import os
-    filepath1 = os.path.join(".", url1.lstrip("/"))
-    filepath2 = os.path.join(".", url2.lstrip("/"))
+    def get_disk_path(url: str) -> str:
+        parts = url.split("/media/uploads/")
+        if len(parts) == 2:
+            return os.path.join("static", "uploads", parts[1])
+        return url.lstrip("/")
+
+    filepath1 = get_disk_path(url1)
+    filepath2 = get_disk_path(url2)
     
     assert not os.path.exists(filepath1)
     assert os.path.exists(filepath2)

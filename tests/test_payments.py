@@ -14,7 +14,18 @@ from app.db.models.registration import CourseRegistration
 from app.db.models.payment import PaymentTransaction
 from app.services.mpesa import mpesa_service
 
-from tests.test_registrations import engine, TestingSessionLocal, override_get_db
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_payments_db.sqlite"
+
+engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+TestingSessionLocal = async_sessionmaker(
+    autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
+)
+
+async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with TestingSessionLocal() as session:
+        yield session
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_test_db():
@@ -26,7 +37,12 @@ async def setup_test_db():
         await conn.run_sync(Base.metadata.drop_all)
 
 
-app.dependency_overrides[get_db] = override_get_db
+@pytest_asyncio.fixture(autouse=True)
+async def setup_dependency_overrides():
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    if get_db in app.dependency_overrides:
+        del app.dependency_overrides[get_db]
 
 
 @pytest_asyncio.fixture
