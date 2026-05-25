@@ -1,14 +1,27 @@
-import logging
+import asyncio
 import contextlib
+from datetime import datetime
+import logging
+import os
+
+from alembic import script
+from alembic.config import Config
+from alembic.runtime import migration
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
-from alembic.config import Config
-from alembic import script
-from alembic.runtime import migration
+from sqlalchemy.exc import OperationalError, TimeoutError as SATimeoutError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.limiter import limiter
+from app.core.redis import redis_manager
 from app.db.session import engine
 
 # Setup logging
@@ -16,8 +29,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def check_db_health():
-    import asyncio
-
     db_url = str(engine.url)
     if ":" in db_url and "@" in db_url:
         parts = db_url.split("@")
@@ -64,8 +75,6 @@ async def check_db_health():
 
     logger.error("❌ Database health check failed after 3 attempts: %s", repr(last_exc))
 
-from app.core.redis import redis_manager
-
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
@@ -81,37 +90,29 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-from fastapi.middleware.gzip import GZipMiddleware
 # Enable GZIP compression for responses > 1000 bytes to reduce payload size and network latency
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Set all CORS enabled origins
-origins = [str(origin).strip() for origin in settings.cors_origins if str(origin).strip()]
+def get_allowed_cors_origins() -> list[str]:
+    origins = [str(origin).strip().rstrip("/") for origin in settings.cors_origins if str(origin).strip()]
+    if any(origin == "*" for origin in origins):
+        raise RuntimeError(
+            "BACKEND_CORS_ORIGINS must list exact allowed origins. Wildcard '*' is not allowed."
+        )
+    return origins
 
-# Regex to allow local development on any port and Vercel subdomains (including branch/preview deployments)
-cors_regex = r"^https://.*\.vercel\.app$|^http://localhost(:\d+)?$|^http://127\.0\.0\.1(:\d+)?$"
 
-if "*" in origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=".*",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_origin_regex=cors_regex,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+allowed_cors_origins = get_allowed_cors_origins()
+if not allowed_cors_origins:
+    logger.warning("No CORS origins configured. Browser requests from other domains will be blocked.")
 
-from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
-from app.core.limiter import limiter
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -121,15 +122,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # acquire a connection within the configured timeout.  SQLAlchemy surfaces
 # these as OperationalError.  None of these are user errors — return 503 so
 # clients can retry, and log at ERROR level for observability.
-
-import asyncio
-from sqlalchemy.exc import OperationalError, TimeoutError as SATimeoutError
-from fastapi.responses import JSONResponse as _JSONResponse
-
 @app.exception_handler(asyncio.TimeoutError)
 async def asyncio_timeout_handler(request: Request, exc: asyncio.TimeoutError):
     logger.error("DB connection timed out for %s %s", request.method, request.url.path)
-    return _JSONResponse(
+    return JSONResponse(
         status_code=503,
         content={"detail": "Service temporarily unavailable. Please try again in a moment."},
         headers={"Retry-After": "5"},
@@ -138,7 +134,7 @@ async def asyncio_timeout_handler(request: Request, exc: asyncio.TimeoutError):
 @app.exception_handler(OperationalError)
 async def sqlalchemy_operational_handler(request: Request, exc: OperationalError):
     logger.error("DB operational error for %s %s: %s", request.method, request.url.path, repr(exc))
-    return _JSONResponse(
+    return JSONResponse(
         status_code=503,
         content={"detail": "Service temporarily unavailable. Please try again in a moment."},
         headers={"Retry-After": "5"},
@@ -147,7 +143,7 @@ async def sqlalchemy_operational_handler(request: Request, exc: OperationalError
 @app.exception_handler(SATimeoutError)
 async def sqlalchemy_timeout_handler(request: Request, exc: SATimeoutError):
     logger.error("DB timeout for %s %s: %s", request.method, request.url.path, repr(exc))
-    return _JSONResponse(
+    return JSONResponse(
         status_code=503,
         content={"detail": "Service temporarily unavailable. Please try again in a moment."},
         headers={"Retry-After": "5"},
@@ -157,12 +153,9 @@ async def sqlalchemy_timeout_handler(request: Request, exc: SATimeoutError):
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-import os
 # Ensure upload directory exists — NOT publicly mounted via StaticFiles.
 # Images are served exclusively through the validated /api/v1/media/uploads/ endpoint.
 os.makedirs("static/uploads", exist_ok=True)
-
-from fastapi.responses import RedirectResponse
 
 @app.get("/static/uploads/{slug}/{filename}", include_in_schema=False)
 async def legacy_static_redirect(slug: str, filename: str):
@@ -176,11 +169,6 @@ async def legacy_static_redirect(slug: str, filename: str):
         status_code=301,
     )
 
-from fastapi import Request
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.templating import Jinja2Templates
-from datetime import datetime
-
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "..", "templates"))
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -188,9 +176,6 @@ async def root(request: Request):
     return templates.TemplateResponse(
         request=request, name="index.html", context={"year": datetime.now().year}
     )
-
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.responses import JSONResponse
 
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -238,8 +223,6 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
     # Fallback to default JSON error for all other requests (APIs/JSON-expecting requests)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
-from fastapi.responses import FileResponse
-
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     file_path = os.path.join(os.path.dirname(__file__), "..", "static", "favicon.ico")
@@ -253,4 +236,3 @@ async def robots():
     if not os.path.exists(file_path):
         return {"message": "robots.txt not found"}
     return FileResponse(file_path, media_type="text/plain")
-

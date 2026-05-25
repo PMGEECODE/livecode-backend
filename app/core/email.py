@@ -1,5 +1,6 @@
 import smtplib
 import asyncio
+from email.utils import formatdate, make_msgid
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -31,6 +32,9 @@ def send_email_sync(
     msg["Subject"] = subject
     msg["From"] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
     msg["To"] = to_email
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain=settings.EMAILS_FROM_EMAIL.split("@")[-1])
+    msg["Reply-To"] = settings.EMAILS_FROM_EMAIL
 
     # Wrap the body in multipart/alternative so plain-text fallback works
     body_part = MIMEMultipart("alternative")
@@ -51,12 +55,14 @@ def send_email_sync(
         msg.attach(mime_base)
 
     try:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20) as server:
+            server.ehlo()
             if settings.SMTP_PORT == 587:
                 server.starttls()
+                server.ehlo()
             if settings.SMTP_USER and settings.SMTP_PASSWORD:
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(msg["From"], [to_email], msg.as_bytes())
+            server.sendmail(settings.EMAILS_FROM_EMAIL, [to_email], msg.as_string())
             logger.info("Email sent to %s", to_email)
     except Exception as exc:
         logger.error("Failed to send email to %s: %s", to_email, exc)

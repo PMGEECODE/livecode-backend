@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # Stored as a raw str to prevent pydantic-settings from attempting
     # json.loads() on the comma-separated value before validators run.
     # Access the parsed list via the `cors_origins` property.
-    BACKEND_CORS_ORIGINS: str = "*"
+    BACKEND_CORS_ORIGINS: str = ""
     JWT_ALGORITHM: str = "HS256"
 
     @property
