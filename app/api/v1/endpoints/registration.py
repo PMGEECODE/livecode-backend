@@ -395,6 +395,7 @@ async def submit_registration(
                     "end_date": course.logistics.end_date.isoformat() if hasattr(course.logistics.end_date, 'isoformat') else course.logistics.end_date,
                     "duration": course.logistics.duration,
                     "price_usd": float(course.logistics.price_usd) if course.logistics.price_usd else 0.0,
+                    "price_kes": float(course.logistics.price_kes) if course.logistics.price_kes else 0.0,
                 }
         except ValueError:
             raise HTTPException(
@@ -446,6 +447,7 @@ async def submit_registration(
         first_name=registration.first_name,
         last_name=registration.last_name,
         email=registration.email,
+        currency=registration.currency,
     )
 
 
@@ -578,7 +580,7 @@ async def delete_registration(
 )
 async def download_invoice(
     id: uuid.UUID,
-    currency: str = "USD",
+    currency: str = None,
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """
@@ -598,7 +600,9 @@ async def download_invoice(
         )
         course = course_res.scalars().first()
         
-    pdf_buffer = generate_invoice_pdf(registration, course, currency=currency)
+    # Default to the registered currency if not explicitly overridden via query param
+    inv_currency = currency if currency else (registration.currency or "USD")
+    pdf_buffer = generate_invoice_pdf(registration, course, currency=inv_currency)
     filename = f"Invoice_{registration.first_name}_{registration.last_name}.pdf"
     
     return StreamingResponse(

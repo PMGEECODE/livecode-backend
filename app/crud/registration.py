@@ -45,6 +45,7 @@ async def create_registration(
         additional_info=payload.additional_info,
         group_size=payload.group_size,
         group_members_json=group_members_json,
+        currency=payload.currency,
         status="pending",
     )
     db.add(registration)
