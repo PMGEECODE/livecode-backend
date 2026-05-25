@@ -433,3 +433,40 @@ async def test_sql_injection_in_slug_path_param(async_client: AsyncClient):
         status.HTTP_404_NOT_FOUND,
         status.HTTP_422_UNPROCESSABLE_ENTITY,
     )
+
+
+@pytest.mark.asyncio
+async def test_list_courses_summary(async_client: AsyncClient):
+    """Verify GET /courses/ with summary=true excludes curriculum_blocks."""
+    payload = {
+        "title": "Summary Test Course",
+        "slug": "summary-test-course",
+        "category": "Technical Courses",
+        "curriculum_blocks": [
+            {
+                "type": "paragraph",
+                "content": {"text": "This is heavy curriculum content"},
+                "order_index": 0
+            }
+        ]
+    }
+    create_response = await async_client.post("/api/v1/courses/", json=payload)
+    assert create_response.status_code == status.HTTP_200_OK
+
+    # 1. Fetch with summary=true
+    response_summary = await async_client.get("/api/v1/courses/", params={"summary": "true"})
+    assert response_summary.status_code == status.HTTP_200_OK
+    courses_summary = response_summary.json()
+    match_summary = next((c for c in courses_summary if c["slug"] == "summary-test-course"), None)
+    assert match_summary is not None
+    assert "curriculum_blocks" not in match_summary
+
+    # 2. Fetch with summary=false (default)
+    response_full = await async_client.get("/api/v1/courses/")
+    assert response_full.status_code == status.HTTP_200_OK
+    courses_full = response_full.json()
+    match_full = next((c for c in courses_full if c["slug"] == "summary-test-course"), None)
+    assert match_full is not None
+    assert len(match_full.get("curriculum_blocks", [])) == 1
+    assert match_full["curriculum_blocks"][0]["content"]["text"] == "This is heavy curriculum content"
+

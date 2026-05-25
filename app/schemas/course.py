@@ -90,3 +90,8 @@ class Course(CourseInDBBase):
     logistics: Optional[CourseLogistics] = None
     curriculum_blocks: List[CourseBlock] = []
     schedules: List[Schedule] = []
+
+class CourseSummary(CourseInDBBase):
+    logistics: Optional[CourseLogistics] = None
+    schedules: List[Schedule] = []
+

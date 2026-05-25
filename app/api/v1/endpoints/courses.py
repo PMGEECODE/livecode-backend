@@ -1,5 +1,5 @@
 import json
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from app.core.limiter import limiter
 
 router = APIRouter()
 
-@router.get("/", response_model=List[schemas.Course])
+@router.get("/", response_model=List[Union[schemas.Course, schemas.CourseSummary]])
 @limiter.limit("60/minute")
 async def read_courses(
     request: Request,
@@ -24,6 +24,7 @@ async def read_courses(
     category: Optional[str] = None,
     sub_category: Optional[str] = None,
     random: bool = False,
+    summary: bool = False,
 ) -> Any:
     """
     Retrieve courses. Pass random=true to get a randomised sample (skips cache).
@@ -31,7 +32,7 @@ async def read_courses(
     if not random:
         cache_key = (
             "courses:list:"
-            f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}"
+            f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}:summary={summary}"
         )
         cached_data = await redis_manager.get(cache_key)
         if cached_data:
@@ -47,6 +48,7 @@ async def read_courses(
         category=category,
         sub_category=sub_category,
         random=random,
+        summary=summary,
     )
 
     if not random:

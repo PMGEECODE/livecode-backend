@@ -153,6 +153,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         category: Optional[str] = None,
         sub_category: Optional[str] = None,
         random: bool = False,
+        summary: bool = False,
     ) -> List[Course]:
         query = select(Course)
         if category:
@@ -166,14 +167,17 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         else:
             query = query.offset(skip)
 
+        options = [
+            selectinload(Course.schedules),
+            selectinload(Course.logistics)
+        ]
+        if not summary:
+            options.append(selectinload(Course.curriculum_blocks))
+
         result = await db.execute(
             query
             .limit(limit)
-            .options(
-                selectinload(Course.schedules),
-                selectinload(Course.logistics),
-                selectinload(Course.curriculum_blocks)
-            )
+            .options(*options)
         )
         return list(result.scalars().all())
 
