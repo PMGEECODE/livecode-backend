@@ -23,20 +23,22 @@ async def read_courses(
     limit: int = 100,
     category: Optional[str] = None,
     sub_category: Optional[str] = None,
+    random: bool = False,
 ) -> Any:
     """
-    Retrieve courses.
+    Retrieve courses. Pass random=true to get a randomised sample (skips cache).
     """
-    cache_key = (
-        "courses:list:"
-        f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}"
-    )
-    cached_data = await redis_manager.get(cache_key)
-    if cached_data:
-        try:
-            return json.loads(cached_data)
-        except Exception:
-            pass
+    if not random:
+        cache_key = (
+            "courses:list:"
+            f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}"
+        )
+        cached_data = await redis_manager.get(cache_key)
+        if cached_data:
+            try:
+                return json.loads(cached_data)
+            except Exception:
+                pass
 
     courses = await crud.course.get_multi(
         db,
@@ -44,15 +46,19 @@ async def read_courses(
         limit=limit,
         category=category,
         sub_category=sub_category,
+        random=random,
     )
-    try:
-        await redis_manager.set(
-            cache_key,
-            json.dumps(jsonable_encoder(courses)),
-            expire=3600
-        )
-    except Exception:
-        pass
+
+    if not random:
+        try:
+            await redis_manager.set(
+                cache_key,
+                json.dumps(jsonable_encoder(courses)),
+                expire=3600
+            )
+        except Exception:
+            pass
+
     return courses
 
 @router.post("/", response_model=schemas.Course)

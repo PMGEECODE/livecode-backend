@@ -152,6 +152,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         limit: int = 100,
         category: Optional[str] = None,
         sub_category: Optional[str] = None,
+        random: bool = False,
     ) -> List[Course]:
         query = select(Course)
         if category:
@@ -159,9 +160,14 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         if sub_category:
             query = query.filter(func.lower(Course.sub_category) == sub_category.strip().lower())
 
+        if random:
+            from sqlalchemy import func as sa_func
+            query = query.order_by(sa_func.random())
+        else:
+            query = query.offset(skip)
+
         result = await db.execute(
             query
-            .offset(skip)
             .limit(limit)
             .options(
                 selectinload(Course.schedules),
