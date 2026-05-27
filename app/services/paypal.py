@@ -155,17 +155,16 @@ class PayPalService:
             "Content-Type": "application/json",
         }
 
-        # Extracts PayPal headers safely
+        # Extracts PayPal headers safely (casing insensitive)
+        lower_headers = {k.lower(): v for k, v in request_headers.items()}
         payload = {
-            "transmission_id": request_headers.get("PAYPAL-TRANSMISSION-ID"),
-            "transmission_time": request_headers.get("PAYPAL-TRANSMISSION-TIME"),
-            "cert_url": request_headers.get("PAYPAL-CERT-URL"),
-            "auth_algo": request_headers.get("PAYPAL-AUTH-ALGO"),
-            "transmission_sig": request_headers.get("PAYPAL-TRANSMISSION-SIG"),
+            "transmission_id": lower_headers.get("paypal-transmission-id"),
+            "transmission_time": lower_headers.get("paypal-transmission-time"),
+            "cert_url": lower_headers.get("paypal-cert-url"),
+            "auth_algo": lower_headers.get("paypal-auth-algo"),
+            "transmission_sig": lower_headers.get("paypal-transmission-sig"),
             "webhook_id": webhook_id,
-            "webhook_event": httpx.post(  # PayPal needs the event object as JSON
-                "https://api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature"
-            ).json() if False else None,  # Will parse below
+            "webhook_event": None,
         }
 
         # Need the raw body parsed to dict
