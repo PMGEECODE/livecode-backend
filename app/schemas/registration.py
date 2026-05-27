@@ -47,6 +47,9 @@ class RegistrationCreate(BaseModel):
     # Currency selection (USD or KES)
     currency: Optional[str] = Field("USD", max_length=10)
 
+    # Controlling email dispatch on submission (default to "Offline" for backward compatibility)
+    payment_method: Optional[str] = Field("Offline", max_length=50)
+
     @field_validator("phone", mode="before")
     @classmethod
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:

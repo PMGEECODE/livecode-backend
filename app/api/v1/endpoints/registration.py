@@ -434,7 +434,10 @@ async def submit_registration(
         "currency": registration.currency,
     }
 
-    background_tasks.add_task(process_registration_email, reg_dict, course_dict)
+    # Only send invoice/confirmation email on submission if this is an Offline registration.
+    # For Online (M-Pesa) and Paypal payments, the email is deferred until the payment transaction completes.
+    if payload.payment_method == "Offline":
+        background_tasks.add_task(process_registration_email, reg_dict, course_dict)
 
     # Invalidate dashboard cache
     await redis_manager.delete_pattern("dashboard:*")
