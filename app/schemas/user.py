@@ -1,5 +1,6 @@
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 from pydantic import BaseModel, EmailStr, ConfigDict
 
 # Shared properties
@@ -8,6 +9,15 @@ class UserBase(BaseModel):
     is_active: Optional[bool] = True
     is_superuser: bool = False
     full_name: Optional[str] = None
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    role: Optional[str] = "user"
+    status: Optional[str] = "active"
+    phone: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+    is_verified: Optional[bool] = False
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):
@@ -20,6 +30,9 @@ class UserUpdate(UserBase):
 
 class UserInDBBase(UserBase):
     id: UUID
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,3 +43,9 @@ class User(UserInDBBase):
 # Additional properties stored in DB
 class UserInDB(UserInDBBase):
     hashed_password: str
+
+# Paginated response schema
+class UserPaginated(BaseModel):
+    users: List[User]
+    total: int
+

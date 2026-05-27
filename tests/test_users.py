@@ -93,10 +93,14 @@ async def test_read_user_by_id_unauthenticated(unauthenticated_client: AsyncClie
 
 @pytest.mark.asyncio
 async def test_read_users_authenticated(authenticated_client: AsyncClient):
-    """Verify that authenticated superusers can access GET /users/."""
+    """Verify that authenticated superusers can access GET /users/ with pagination format."""
     response = await authenticated_client.get("/api/v1/users/")
     assert response.status_code == status.HTTP_200_OK
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert isinstance(data, dict)
+    assert "users" in data
+    assert "total" in data
+    assert isinstance(data["users"], list)
 
 @pytest.mark.asyncio
 async def test_create_user_authenticated(authenticated_client: AsyncClient):
@@ -104,14 +108,110 @@ async def test_create_user_authenticated(authenticated_client: AsyncClient):
     payload = {
         "email": "newuser@example.com",
         "password": "password123",
-        "full_name": "New User"
+        "first_name": "New",
+        "last_name": "User",
+        "role": "instructor"
     }
     response = await authenticated_client.post("/api/v1/users/", json=payload)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["email"] == "newuser@example.com"
+    assert data["first_name"] == "New"
+    assert data["last_name"] == "User"
     assert data["full_name"] == "New User"
+    assert data["role"] == "instructor"
     assert "id" in data
+
+@pytest.mark.asyncio
+async def test_update_user_authenticated(authenticated_client: AsyncClient):
+    """Verify that authenticated superusers can update users."""
+    # 1. Create a user first
+    payload = {
+        "email": "updateuser@example.com",
+        "password": "password123",
+        "first_name": "Before",
+        "last_name": "Update"
+    }
+    create_resp = await authenticated_client.post("/api/v1/users/", json=payload)
+    assert create_resp.status_code == status.HTTP_200_OK
+    user_id = create_resp.json()["id"]
+
+    # 2. Update the user
+    update_payload = {
+        "first_name": "After",
+        "last_name": "Update",
+        "phone": "+1234567890",
+        "bio": "Updated bio"
+    }
+    update_resp = await authenticated_client.put(f"/api/v1/users/{user_id}", json=update_payload)
+    assert update_resp.status_code == status.HTTP_200_OK
+    data = update_resp.json()
+    assert data["first_name"] == "After"
+    assert data["last_name"] == "Update"
+    assert data["full_name"] == "After Update"
+    assert data["phone"] == "+1234567890"
+    assert data["bio"] == "Updated bio"
+
+@pytest.mark.asyncio
+async def test_delete_user_authenticated(authenticated_client: AsyncClient):
+    """Verify that authenticated superusers can delete users."""
+    # 1. Create a user first
+    payload = {
+        "email": "deleteuser@example.com",
+        "password": "password123",
+        "full_name": "To Be Deleted"
+    }
+    create_resp = await authenticated_client.post("/api/v1/users/", json=payload)
+    assert create_resp.status_code == status.HTTP_200_OK
+    user_id = create_resp.json()["id"]
+
+    # 2. Delete the user
+    delete_resp = await authenticated_client.delete(f"/api/v1/users/{user_id}")
+    assert delete_resp.status_code == status.HTTP_200_OK
+
+    # 3. Verify user is gone
+    get_resp = await authenticated_client.get(f"/api/v1/users/{user_id}")
+    assert get_resp.status_code == status.HTTP_404_NOT_FOUND
+
+@pytest.mark.asyncio
+async def test_change_user_status_authenticated(authenticated_client: AsyncClient):
+    """Verify that authenticated superusers can patch user status."""
+    # 1. Create a user first
+    payload = {
+        "email": "statususer@example.com",
+        "password": "password123",
+        "full_name": "Status User"
+    }
+    create_resp = await authenticated_client.post("/api/v1/users/", json=payload)
+    assert create_resp.status_code == status.HTTP_200_OK
+    user_id = create_resp.json()["id"]
+
+    # 2. Patch status to suspended
+    patch_resp = await authenticated_client.patch(f"/api/v1/users/{user_id}/status", json={"status": "suspended"})
+    assert patch_resp.status_code == status.HTTP_200_OK
+    data = patch_resp.json()
+    assert data["status"] == "suspended"
+
+@pytest.mark.asyncio
+async def test_change_user_role_authenticated(authenticated_client: AsyncClient):
+    """Verify that authenticated superusers can patch user role."""
+    # 1. Create a user first
+    payload = {
+        "email": "roleuser@example.com",
+        "password": "password123",
+        "full_name": "Role User"
+    }
+    create_resp = await authenticated_client.post("/api/v1/users/", json=payload)
+    assert create_resp.status_code == status.HTTP_200_OK
+    user_id = create_resp.json()["id"]
+
+    # 2. Patch role to moderator
+    patch_resp = await authenticated_client.patch(f"/api/v1/users/{user_id}/role", json={"role": "moderator"})
+    assert patch_resp.status_code == status.HTTP_200_OK
+    data = patch_resp.json()
+    assert data["role"] == "moderator"
+    assert data["is_superuser"] is False
+
 
 
 # ─── C) BROWSER VS API ERROR RESPONSE TESTS ───
