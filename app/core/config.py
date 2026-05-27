@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     STRIPE_PUBLIC_KEY: str | None = None
     STRIPE_SECRET_KEY: str | None = None
 
+    # PayPal configuration
+    PAYPAL_MODE: str = "sandbox"
+    PAYPAL_CLIENT_ID: str | None = None
+    PAYPAL_CLIENT_SECRET: str | None = None
+    PAYPAL_WEBHOOK_ID: str | None = None
+
     # Security & CORS
     # Stored as a raw str to prevent pydantic-settings from attempting
     # json.loads() on the comma-separated value before validators run.

@@ -40,3 +40,26 @@ class StripeChargeRequest(BaseModel):
     model_config = {
         "extra": "forbid"
     }
+
+
+class PaypalCreateOrderRequest(BaseModel):
+    registration_id: UUID
+
+    model_config = {
+        "extra": "forbid"
+    }
+
+
+class PaypalCaptureRequest(BaseModel):
+    registration_id: UUID
+    order_id: str
+
+    model_config = {
+        "extra": "forbid"
+    }
+
+
+class PaypalConfigResponse(BaseModel):
+    client_id: str
+    mode: str
+

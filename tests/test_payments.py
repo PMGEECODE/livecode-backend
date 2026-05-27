@@ -4,6 +4,7 @@ import uuid
 from typing import AsyncGenerator
 from fastapi import status
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from unittest.mock import patch, AsyncMock
 
@@ -415,5 +416,263 @@ async def test_initiate_stk_push_deduplication(async_client: AsyncClient):
     data = response.json()
     assert data["checkout_request_id"] == "ws_CO_existing123"
     assert "already processing" in data["customer_message"]
+
+
+# ─── F) PAYPAL GATEWAY TESTS ───
+
+@pytest.mark.asyncio
+@patch("app.core.config.settings.PAYPAL_CLIENT_ID", "mock_client_id")
+async def test_paypal_config_route(async_client: AsyncClient):
+    """Verify PayPal config endpoint returns client ID and mode correctly."""
+    response = await async_client.get("/api/v1/payments/paypal/config")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["client_id"] == "mock_client_id"
+    assert data["mode"] in ("sandbox", "live")
+
+
+@pytest.mark.asyncio
+@patch("app.services.paypal.PayPalService.create_order")
+async def test_paypal_create_order_success(mock_create, async_client: AsyncClient):
+    """Verify that create-order calls PayPal API and logs transaction as pending."""
+    reg_id = uuid.uuid4()
+    course_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        # Seed course and logistics for total calculation
+        from app.db.models.course import Course, CourseLogistics
+        c = Course(id=course_id, title="FastAPI Course", slug="fastapi-course", category="IT")
+        log = CourseLogistics(course_id=course_id, price_usd=100.0)
+        r = CourseRegistration(
+            id=reg_id,
+            course_id=course_id,
+            course_title="FastAPI Course",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="pending",
+            currency="USD",
+        )
+        db.add_all([c, log, r])
+        await db.commit()
+
+    mock_create.return_value = {"id": "paypal_order_123"}
+
+    body = {"registration_id": str(reg_id)}
+    response = await async_client.post("/api/v1/payments/paypal/create-order", json=body)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"order_id": "paypal_order_123"}
+
+    # Verify transaction in db
+    async with TestingSessionLocal() as db:
+        res = await db.execute(select(PaymentTransaction).filter(PaymentTransaction.registration_id == reg_id))
+        tx = res.scalars().first()
+        assert tx is not None
+        assert tx.checkout_request_id == "paypal_paypal_order_123"
+        assert tx.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_paypal_create_order_already_confirmed(async_client: AsyncClient):
+    """Verify create-order rejects already paid/confirmed registrations."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="FastAPI Course",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="confirmed",
+        )
+        db.add(r)
+        await db.commit()
+
+    body = {"registration_id": str(reg_id)}
+    response = await async_client.post("/api/v1/payments/paypal/create-order", json=body)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.asyncio
+@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.services.paypal.PayPalService.capture_order")
+async def test_paypal_capture_order_success(mock_capture, mock_email, async_client: AsyncClient):
+    """Verify capturing order updates statuses and triggers email confirmation."""
+    reg_id = uuid.uuid4()
+    order_id = "order_abc"
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="FastAPI Course",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="pending",
+        )
+        t = PaymentTransaction(
+            registration_id=reg_id,
+            checkout_request_id=f"paypal_{order_id}",
+            merchant_request_id=f"paypal_order_{order_id}",
+            amount=116.0,
+            phone_number="PayPal",
+            status="pending",
+        )
+        db.add_all([r, t])
+        await db.commit()
+
+    mock_capture.return_value = {
+        "id": order_id,
+        "status": "COMPLETED",
+        "purchase_units": [
+            {
+                "payments": {
+                    "captures": [
+                        {"id": "capture_xyz", "status": "COMPLETED"}
+                    ]
+                }
+            }
+        ]
+    }
+
+    body = {"registration_id": str(reg_id), "order_id": order_id}
+    response = await async_client.post("/api/v1/payments/paypal/capture-order", json=body)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["status"] == "success"
+
+    # Verify db status updates
+    async with TestingSessionLocal() as db:
+        r_db = (await db.execute(select(CourseRegistration).filter(CourseRegistration.id == reg_id))).scalars().first()
+        assert r_db.status == "confirmed"
+
+        t_db = (await db.execute(select(PaymentTransaction).filter(PaymentTransaction.checkout_request_id == f"paypal_{order_id}"))).scalars().first()
+        assert t_db.status == "completed"
+        assert t_db.mpesa_receipt_number == "capture_xyz"
+
+    mock_email.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_paypal_capture_order_idempotent(async_client: AsyncClient):
+    """Verify capture route is idempotent if registration is already confirmed."""
+    reg_id = uuid.uuid4()
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="FastAPI Course",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="confirmed",
+        )
+        db.add(r)
+        await db.commit()
+
+    body = {"registration_id": str(reg_id), "order_id": "any_order"}
+    response = await async_client.post("/api/v1/payments/paypal/capture-order", json=body)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_paypal_validation_extra_fields(async_client: AsyncClient):
+    """Verify PayPal requests reject unexpected parameters to prevent injection."""
+    body_create = {
+        "registration_id": str(uuid.uuid4()),
+        "extra_field": "not_allowed"
+    }
+    res_create = await async_client.post("/api/v1/payments/paypal/create-order", json=body_create)
+    assert res_create.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    body_capture = {
+        "registration_id": str(uuid.uuid4()),
+        "order_id": "order_123",
+        "hacked_amount": 0.01
+    }
+    res_capture = await async_client.post("/api/v1/payments/paypal/capture-order", json=body_capture)
+    assert res_capture.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+async def test_paypal_sql_injection_mitigation(async_client: AsyncClient):
+    """Verify PayPal endpoints degrade safely under SQL injection payloads."""
+    body = {
+        "registration_id": str(uuid.uuid4()),
+        "order_id": "order' OR '1'='1"
+    }
+    response = await async_client.post("/api/v1/payments/paypal/capture-order", json=body)
+    # Registration ID won't exist, should safely raise 404 rather than SQL syntax error or data compromise
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.api.v1.endpoints.payments.paypal_service.verify_webhook_signature")
+async def test_paypal_webhook_success(mock_verify, mock_email, async_client: AsyncClient):
+    """Verify that PAYMENT.CAPTURE.COMPLETED webhook confirms registration."""
+    mock_verify.return_value = True
+    reg_id = uuid.uuid4()
+    order_id = "webhook_order_123"
+
+    async with TestingSessionLocal() as db:
+        r = CourseRegistration(
+            id=reg_id,
+            course_title="FastAPI Course",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            status="pending",
+        )
+        t = PaymentTransaction(
+            registration_id=reg_id,
+            checkout_request_id=f"paypal_{order_id}",
+            merchant_request_id=f"paypal_order_{order_id}",
+            amount=100.0,
+            phone_number="PayPal",
+            status="pending",
+        )
+        db.add_all([r, t])
+        await db.commit()
+
+    webhook_payload = {
+        "event_type": "PAYMENT.CAPTURE.COMPLETED",
+        "resource": {
+            "id": "capture_webhook_789",
+            "links": [
+                {
+                    "href": f"https://api.sandbox.paypal.com/v2/checkout/orders/{order_id}",
+                    "rel": "up"
+                }
+            ]
+        }
+    }
+
+    # Set mock webhook id to allow signature check
+    with patch("app.core.config.settings.PAYPAL_WEBHOOK_ID", "mock_webhook_id"):
+        response = await async_client.post(
+            "/api/v1/payments/paypal/webhook",
+            json=webhook_payload,
+            headers={
+                "PAYPAL-TRANSMISSION-ID": "tx_123",
+                "PAYPAL-TRANSMISSION-TIME": "time_123",
+                "PAYPAL-CERT-URL": "cert_url",
+                "PAYPAL-AUTH-ALGO": "algo",
+                "PAYPAL-TRANSMISSION-SIG": "sig"
+            }
+        )
+    assert response.status_code == status.HTTP_200_OK
+
+    # Check database confirmed
+    async with TestingSessionLocal() as db:
+        r_db = (await db.execute(select(CourseRegistration).filter(CourseRegistration.id == reg_id))).scalars().first()
+        assert r_db.status == "confirmed"
+
+        t_db = (await db.execute(select(PaymentTransaction).filter(PaymentTransaction.checkout_request_id == f"paypal_{order_id}"))).scalars().first()
+        assert t_db.status == "completed"
+        assert t_db.mpesa_receipt_number == "capture_webhook_789"
+
 
 
