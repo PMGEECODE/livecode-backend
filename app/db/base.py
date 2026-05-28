@@ -6,3 +6,5 @@ from app.db.models.service import Service  # noqa
 from app.db.models.schedule import Schedule  # noqa
 from app.db.models.registration import CourseRegistration  # noqa
 from app.db.models.payment import PaymentTransaction  # noqa
+from app.db.models.partner import TrustedPartner  # noqa
+from app.db.models.trainer import TrainerApplication  # noqa

@@ -6,3 +6,4 @@ from .service import Service, ServiceCreate, ServiceUpdate  # noqa
 from .contact import Contact, ContactCreate, ContactUpdate  # noqa
 from .payment import MpesaStkPushRequest, MpesaStkPushResponse, MpesaStatusResponse  # noqa
 from .partner import TrustedPartner, TrustedPartnerCreate, TrustedPartnerUpdate  # noqa
+from .trainer import TrainerApplicationCreate, TrainerApplicationUpdate, TrainerApplicationResponse  # noqa
