@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, blog, courses, users, services, realtime, registration, contacts, dashboard, payments, upload, media
+from app.api.v1.endpoints import auth, blog, courses, users, services, realtime, registration, contacts, dashboard, payments, upload, media, partners
 
 api_router = APIRouter()
 api_router.include_router(auth.router, tags=["auth"], prefix="/auth")
@@ -14,5 +14,7 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboar
 api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
 api_router.include_router(upload.router, prefix="/upload", tags=["upload"])
 api_router.include_router(media.router, prefix="/media", tags=["media"])
+api_router.include_router(partners.router, prefix="/partners", tags=["partners"])
+
 
 

@@ -280,58 +280,64 @@ async def process_registration_email(registration_dict: dict, course_dict: dict 
 async def fix_db(db: AsyncSession = Depends(get_db)) -> Any:
     """Temporary endpoint to create the course_registration table on production."""
     try:
-        sql = sa.text('''
-        CREATE TABLE IF NOT EXISTS course_registration (
-            id UUID NOT NULL PRIMARY KEY,
-            course_id UUID,
-            course_title VARCHAR NOT NULL,
-            schedule_date VARCHAR,
-            schedule_location VARCHAR,
-            registration_type VARCHAR NOT NULL,
-            title VARCHAR,
-            first_name VARCHAR NOT NULL,
-            middle_name VARCHAR,
-            last_name VARCHAR NOT NULL,
-            gender VARCHAR,
-            organization VARCHAR,
-            department VARCHAR,
-            phone VARCHAR,
-            email VARCHAR NOT NULL,
-            official_email VARCHAR,
-            country VARCHAR,
-            city VARCHAR,
-            address VARCHAR,
-            how_heard VARCHAR,
-            accommodation BOOLEAN,
-            airport_pickup BOOLEAN,
-            additional_info TEXT,
-            group_size VARCHAR,
-            group_members_json TEXT,
-            status VARCHAR NOT NULL,
-            FOREIGN KEY(course_id) REFERENCES course (id) ON DELETE SET NULL
-        );
-        CREATE INDEX IF NOT EXISTS ix_course_registration_course_id ON course_registration (course_id);
-        CREATE INDEX IF NOT EXISTS ix_course_registration_email ON course_registration (email);
-
-        CREATE TABLE IF NOT EXISTS payment_transaction (
-            id UUID NOT NULL PRIMARY KEY,
-            registration_id UUID NOT NULL,
-            checkout_request_id VARCHAR NOT NULL UNIQUE,
-            merchant_request_id VARCHAR,
-            amount DOUBLE PRECISION NOT NULL,
-            phone_number VARCHAR NOT NULL,
-            status VARCHAR NOT NULL DEFAULT 'pending',
-            mpesa_receipt_number VARCHAR,
-            result_code VARCHAR,
-            result_desc VARCHAR,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE,
-            FOREIGN KEY(registration_id) REFERENCES course_registration (id) ON DELETE CASCADE
-        );
-        CREATE INDEX IF NOT EXISTS ix_payment_transaction_registration_id ON payment_transaction (registration_id);
-        CREATE INDEX IF NOT EXISTS ix_payment_transaction_checkout_request_id ON payment_transaction (checkout_request_id);
-        ''')
-        await db.execute(sql)
+        statements = [
+            '''
+            CREATE TABLE IF NOT EXISTS course_registration (
+                id UUID NOT NULL PRIMARY KEY,
+                course_id UUID,
+                course_title VARCHAR NOT NULL,
+                schedule_date VARCHAR,
+                schedule_location VARCHAR,
+                registration_type VARCHAR NOT NULL,
+                title VARCHAR,
+                first_name VARCHAR NOT NULL,
+                middle_name VARCHAR,
+                last_name VARCHAR NOT NULL,
+                gender VARCHAR,
+                organization VARCHAR,
+                department VARCHAR,
+                phone VARCHAR,
+                email VARCHAR NOT NULL,
+                official_email VARCHAR,
+                country VARCHAR,
+                city VARCHAR,
+                address VARCHAR,
+                how_heard VARCHAR,
+                accommodation BOOLEAN,
+                airport_pickup BOOLEAN,
+                additional_info TEXT,
+                group_size VARCHAR,
+                group_members_json TEXT,
+                status VARCHAR NOT NULL,
+                FOREIGN KEY(course_id) REFERENCES course (id) ON DELETE SET NULL
+            )
+            ''',
+            'CREATE INDEX IF NOT EXISTS ix_course_registration_course_id ON course_registration (course_id)',
+            'CREATE INDEX IF NOT EXISTS ix_course_registration_email ON course_registration (email)',
+            '''
+            CREATE TABLE IF NOT EXISTS payment_transaction (
+                id UUID NOT NULL PRIMARY KEY,
+                registration_id UUID NOT NULL,
+                checkout_request_id VARCHAR NOT NULL UNIQUE,
+                merchant_request_id VARCHAR,
+                amount DOUBLE PRECISION NOT NULL,
+                phone_number VARCHAR NOT NULL,
+                status VARCHAR NOT NULL DEFAULT \'pending\',
+                mpesa_receipt_number VARCHAR,
+                result_code VARCHAR,
+                result_desc VARCHAR,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE,
+                FOREIGN KEY(registration_id) REFERENCES course_registration (id) ON DELETE CASCADE
+            )
+            ''',
+            'CREATE INDEX IF NOT EXISTS ix_payment_transaction_registration_id ON payment_transaction (registration_id)',
+            'CREATE INDEX IF NOT EXISTS ix_payment_transaction_checkout_request_id ON payment_transaction (checkout_request_id)'
+        ]
+        
+        for statement in statements:
+            if statement.strip():
+                await db.execute(sa.text(statement))
         await db.commit()
         
         # Also fix the alembic version
