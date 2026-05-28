@@ -2,3 +2,4 @@
 venv
 migration.log
 
+/static/uploads/partners

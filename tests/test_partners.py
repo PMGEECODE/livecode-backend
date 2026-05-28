@@ -223,3 +223,31 @@ async def test_sql_injection_in_partner_fields(async_client: AsyncClient):
     # Table must still function and remain queryable
     list_response = await async_client.get("/api/v1/partners/")
     assert list_response.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.asyncio
+async def test_upload_partner_logo_webp_conversion(async_client: AsyncClient):
+    """POST /partners/upload-logo converts a PNG image to WebP format using FFmpeg."""
+    import io
+    import os
+    from PIL import Image
+
+    img = Image.new("RGB", (10, 10), color="blue")
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    img_bytes = img_byte_arr.getvalue()
+
+    files = {"file": ("test.png", img_bytes, "image/png")}
+    response = await async_client.post("/api/v1/partners/upload-logo", files=files)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert "url" in data
+    # Assert URL ends with .webp, proving conversion happened!
+    assert data["url"].endswith(".webp")
+
+    # Verify the physical file exists and clean it up
+    relative = data["url"].split("/media/")[-1]
+    file_path = os.path.join("static", relative)
+    assert os.path.isfile(file_path)
+    os.remove(file_path)
+
