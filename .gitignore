@@ -1,5 +1,6 @@
 .env
 venv
 migration.log
-
 /static/uploads/partners
+/static/uploads/trainers
+/static/uploads/
