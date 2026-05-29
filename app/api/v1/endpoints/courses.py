@@ -25,6 +25,7 @@ async def read_courses(
     sub_category: Optional[str] = None,
     random: bool = False,
     summary: bool = False,
+    active_only: bool = False,
 ) -> Any:
     """
     Retrieve courses. Pass random=true to get a randomised sample (skips cache).
@@ -32,7 +33,7 @@ async def read_courses(
     if not random:
         cache_key = (
             "courses:list:"
-            f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}:summary={summary}"
+            f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}:summary={summary}:active_only={active_only}"
         )
         cached_data = await redis_manager.get(cache_key)
         if cached_data:
@@ -49,6 +50,7 @@ async def read_courses(
         sub_category=sub_category,
         random=random,
         summary=summary,
+        active_only=active_only,
     )
 
     if not random:

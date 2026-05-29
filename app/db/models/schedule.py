@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, ForeignKey, Integer
+from sqlalchemy import Column, String, Float, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.base_class import Base
@@ -14,5 +14,6 @@ class Schedule(Base):
     price_usd = Column(Float, nullable=True)
     year = Column(Integer, default=2026)
     registration_url = Column(String, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True, server_default="true")
 
     course = relationship("Course", back_populates="schedules")

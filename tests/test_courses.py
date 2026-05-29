@@ -470,3 +470,164 @@ async def test_list_courses_summary(async_client: AsyncClient):
     assert len(match_full.get("curriculum_blocks", [])) == 1
     assert match_full["curriculum_blocks"][0]["content"]["text"] == "This is heavy curriculum content"
 
+
+@pytest.mark.asyncio
+async def test_list_courses_active_only(async_client: AsyncClient):
+    """Verify that GET /courses/ with active_only=true filters out expired/no-schedule courses."""
+    from datetime import datetime
+    current_year = datetime.now().year
+    future_year = current_year + 1
+    past_year = current_year - 5
+
+    # 1. Course with future schedule
+    active_payload = {
+        "title": "Active Course",
+        "slug": "active-course",
+        "category": "Technical Courses",
+        "schedules": [
+            {
+                "date_range": f"18 May - 29 May {future_year}",
+                "location": "Nairobi",
+                "mode": "physical",
+                "year": future_year
+            }
+        ]
+    }
+    # 2. Course with expired schedule
+    expired_payload = {
+        "title": "Expired Course",
+        "slug": "expired-course",
+        "category": "Technical Courses",
+        "schedules": [
+            {
+                "date_range": f"01 Jan - 10 Jan {past_year}",
+                "location": "Mombasa",
+                "mode": "physical",
+                "year": past_year
+            }
+        ]
+    }
+    # 3. Course with no schedules
+    no_sched_payload = {
+        "title": "No Sched Course",
+        "slug": "no-sched-course",
+        "category": "Technical Courses",
+        "schedules": []
+    }
+
+    res_active = await async_client.post("/api/v1/courses/", json=active_payload)
+    assert res_active.status_code == status.HTTP_200_OK
+    res_expired = await async_client.post("/api/v1/courses/", json=expired_payload)
+    assert res_expired.status_code == status.HTTP_200_OK
+    res_no_sched = await async_client.post("/api/v1/courses/", json=no_sched_payload)
+    assert res_no_sched.status_code == status.HTTP_200_OK
+
+    # Fetch with active_only=true
+    resp_active_only = await async_client.get("/api/v1/courses/", params={"active_only": "true"})
+    assert resp_active_only.status_code == status.HTTP_200_OK
+    courses_active = resp_active_only.json()
+    slugs_active = [c["slug"] for c in courses_active]
+
+    assert "active-course" in slugs_active
+    assert "expired-course" not in slugs_active
+    assert "no-sched-course" not in slugs_active
+
+    # Fetch with active_only=false (should return all courses)
+    resp_all = await async_client.get("/api/v1/courses/", params={"active_only": "false"})
+    assert resp_all.status_code == status.HTTP_200_OK
+    courses_all = resp_all.json()
+    slugs_all = [c["slug"] for c in courses_all]
+
+    assert "active-course" in slugs_all
+    assert "expired-course" in slugs_all
+    assert "no-sched-course" in slugs_all
+
+
+@pytest.mark.asyncio
+async def test_list_courses_active_only_respects_enabled(async_client: AsyncClient):
+    """Verify active_only=true excludes courses whose only future schedule is disabled."""
+    from datetime import datetime
+    future_year = datetime.now().year + 1
+
+    # Course whose sole schedule is future but explicitly disabled
+    disabled_payload = {
+        "title": "Disabled Future Course",
+        "slug": "disabled-future-course",
+        "category": "Technical Courses",
+        "schedules": [
+            {
+                "date_range": f"01 Jun - 10 Jun {future_year}",
+                "location": "Nairobi",
+                "mode": "physical",
+                "year": future_year,
+                "enabled": False,
+            }
+        ],
+    }
+    # Course with one disabled future + one enabled future schedule (should still appear)
+    mixed_payload = {
+        "title": "Mixed Schedule Course",
+        "slug": "mixed-schedule-course",
+        "category": "Technical Courses",
+        "schedules": [
+            {
+                "date_range": f"01 Jul - 05 Jul {future_year}",
+                "location": "Mombasa",
+                "mode": "physical",
+                "year": future_year,
+                "enabled": False,
+            },
+            {
+                "date_range": f"15 Aug - 20 Aug {future_year}",
+                "location": "Kisumu",
+                "mode": "virtual",
+                "year": future_year,
+                "enabled": True,
+            },
+        ],
+    }
+
+    res_disabled = await async_client.post("/api/v1/courses/", json=disabled_payload)
+    assert res_disabled.status_code == status.HTTP_200_OK
+    res_mixed = await async_client.post("/api/v1/courses/", json=mixed_payload)
+    assert res_mixed.status_code == status.HTTP_200_OK
+
+    resp = await async_client.get("/api/v1/courses/", params={"active_only": "true"})
+    assert resp.status_code == status.HTTP_200_OK
+    slugs = [c["slug"] for c in resp.json()]
+
+    # Disabled-only course must be filtered out
+    assert "disabled-future-course" not in slugs
+    # Mixed course still has an enabled future schedule — must appear
+    assert "mixed-schedule-course" in slugs
+
+
+@pytest.mark.asyncio
+async def test_enabled_field_persisted_on_create(async_client: AsyncClient):
+    """Verify enabled=False is stored and returned correctly on course creation."""
+    from datetime import datetime
+    future_year = datetime.now().year + 1
+
+    payload = {
+        "title": "Persist Enabled Test",
+        "slug": "persist-enabled-test",
+        "category": "Technical Courses",
+        "schedules": [
+            {
+                "date_range": f"01 Sep - 10 Sep {future_year}",
+                "location": "Nairobi",
+                "mode": "physical",
+                "year": future_year,
+                "enabled": False,
+            }
+        ],
+    }
+    create_resp = await async_client.post("/api/v1/courses/", json=payload)
+    assert create_resp.status_code == status.HTTP_200_OK
+
+    get_resp = await async_client.get("/api/v1/courses/persist-enabled-test")
+    assert get_resp.status_code == status.HTTP_200_OK
+    data = get_resp.json()
+    assert len(data["schedules"]) == 1
+    assert data["schedules"][0]["enabled"] is False
+

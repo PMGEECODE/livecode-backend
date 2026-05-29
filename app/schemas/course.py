@@ -11,11 +11,13 @@ class ScheduleBase(BaseModel):
     price_usd: Optional[float] = None
     year: Optional[int] = 2026
     registration_url: Optional[str] = None
+    enabled: Optional[bool] = True
 
 class ScheduleCreate(ScheduleBase):
     date_range: str
     location: str
     mode: str
+    enabled: bool = True
 
 class ScheduleUpdate(ScheduleBase):
     pass

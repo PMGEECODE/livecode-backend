@@ -27,7 +27,8 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
             "%m-%d-%Y %H:%M", "%d-%m-%Y %H:%M", "%Y-%m-%d %H:%M",
             "%m-%d-%Y %I:%M %p", "%d-%m-%Y %I:%M %p",
             "%m-%d-%Y", "%d-%m-%Y", "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", 
-            "%b %d, %Y", "%d %b, %Y", "%d %B, %Y", "%B %d, %Y"
+            "%b %d, %Y", "%d %b, %Y", "%d %B, %Y", "%B %d, %Y",
+            "%b %d %Y", "%d %b %Y", "%d %B %Y", "%B %d %Y"
         ]
         for fmt in formats:
             try:
@@ -38,6 +39,19 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
             except ValueError:
                 continue
         return None
+
+    def _parse_schedule_date_string(self, date_str: str, year: int, end_of_day: bool = False) -> Optional[datetime]:
+        if not date_str:
+            return None
+        clean_str = date_str.strip()
+        if not re.search(r"\b\d{4}\b", clean_str):
+            if "-" in clean_str:
+                clean_str = f"{clean_str}-{year}"
+            elif "/" in clean_str:
+                clean_str = f"{clean_str}/{year}"
+            else:
+                clean_str = f"{clean_str}, {year}"
+        return self._parse_datetime(clean_str, end_of_day=end_of_day)
 
     def _sync_event_properties(self, course: Course):
         if not course or not course.schedules:
@@ -50,7 +64,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
             upcoming = []
             for s in course.schedules:
                 parts = re.split(r'\s+(?:-|–)\s+', s.date_range)
-                dt_end = self._parse_datetime(parts[-1], end_of_day=True)
+                dt_end = self._parse_schedule_date_string(parts[-1], s.year, end_of_day=True)
                 if dt_end and dt_end >= now:
                     dt_start = self._parse_datetime(parts[0])
                     if not dt_start and len(parts) > 1:
@@ -154,6 +168,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         sub_category: Optional[str] = None,
         random: bool = False,
         summary: bool = False,
+        active_only: bool = False,
     ) -> List[Course]:
         query = select(Course)
         if category:
@@ -161,18 +176,46 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         if sub_category:
             query = query.filter(func.lower(Course.sub_category) == sub_category.strip().lower())
 
-        if random:
-            from sqlalchemy import func as sa_func
-            query = query.order_by(sa_func.random())
-        else:
-            query = query.offset(skip)
-
         options = [
             selectinload(Course.schedules),
             selectinload(Course.logistics)
         ]
         if not summary:
             options.append(selectinload(Course.curriculum_blocks))
+
+        if active_only:
+            if random:
+                from sqlalchemy import func as sa_func
+                query = query.order_by(sa_func.random())
+            
+            result = await db.execute(query.options(*options))
+            all_courses = list(result.scalars().all())
+            
+            now = datetime.now()
+            filtered_courses = []
+            for course in all_courses:
+                has_active = False
+                for s in course.schedules:
+                    # Skip schedules explicitly disabled by admin
+                    if getattr(s, 'enabled', True) is False:
+                        continue
+                    parts = re.split(r'\s+(?:-|–)\s+', s.date_range)
+                    dt_end = self._parse_schedule_date_string(parts[-1], s.year, end_of_day=True)
+                    if dt_end and dt_end >= now:
+                        has_active = True
+                        break
+                if has_active:
+                    filtered_courses.append(course)
+            
+            if not random:
+                return filtered_courses[skip : skip + limit]
+            return filtered_courses[:limit]
+
+        if random:
+            from sqlalchemy import func as sa_func
+            query = query.order_by(sa_func.random())
+        else:
+            query = query.offset(skip)
 
         result = await db.execute(
             query
