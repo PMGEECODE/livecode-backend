@@ -163,3 +163,40 @@ async def test_upload_one_image_per_course(authenticated_client: AsyncClient):
     assert not os.path.exists(filepath1)
     assert os.path.exists(filepath2)
 
+
+@pytest.mark.asyncio
+async def test_delete_image_unauthenticated(unauthenticated_client: AsyncClient):
+    """Verify that unauthenticated access to DELETE /upload/{slug} is rejected with 401."""
+    response = await unauthenticated_client.delete("/api/v1/upload/test-course")
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_delete_image_authenticated(authenticated_client: AsyncClient):
+    """Verify that an authenticated superuser can successfully delete a course's image physically from the disk."""
+    slug = "test-course-delete"
+    
+    # Upload first image
+    files = {"file": ("image.png", b"fake image bytes", "image/png")}
+    upload_resp = await authenticated_client.post("/api/v1/upload/", files=files, data={"slug": slug})
+    assert upload_resp.status_code == status.HTTP_200_OK
+    url = upload_resp.json()["url"]
+    
+    def get_disk_path(u: str) -> str:
+        parts = u.split("/media/uploads/")
+        if len(parts) == 2:
+            return os.path.join("static", "uploads", parts[1])
+        return u.lstrip("/")
+
+    filepath = get_disk_path(url)
+    assert os.path.exists(filepath)
+    
+    # Delete image
+    delete_resp = await authenticated_client.delete(f"/api/v1/upload/{slug}")
+    assert delete_resp.status_code == status.HTTP_200_OK
+    assert delete_resp.json() == {"status": "success", "message": "Image(s) successfully deleted."}
+    
+    # Verify file was physically deleted
+    assert not os.path.exists(filepath)
+
+

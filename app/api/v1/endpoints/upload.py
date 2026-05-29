@@ -94,3 +94,19 @@ async def upload_image(
     # 8. Return the secure media endpoint URL (no static/ path exposed).
     return {"url": f"{settings.API_V1_STR}/media/uploads/{safe_slug}/{filename}"}
 
+
+@router.delete("/{slug}", response_model=dict)
+async def delete_image(
+    slug: str,
+    current_user: models.User = Depends(deps.get_current_active_superuser),
+) -> dict:
+    """
+    Delete all uploaded images for the given course slug.
+    * Requires superuser authentication.
+    """
+    safe_slug = _sanitize_slug(slug)
+    course_dir = os.path.join(UPLOAD_DIR, safe_slug)
+    await anyio.to_thread.run_sync(lambda: _purge_course_dir_sync(course_dir))
+    return {"status": "success", "message": "Image(s) successfully deleted."}
+
+
