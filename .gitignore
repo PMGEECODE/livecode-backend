@@ -4,3 +4,7 @@ migration.log
 /static/uploads/partners
 /static/uploads/trainers
 /static/uploads/
+/var
+/test_*.sqlite
+/app.db
+/tests

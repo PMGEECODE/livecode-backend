@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: str = ""
     JWT_ALGORITHM: str = "HS256"
 
+    # Upload security
+    UPLOAD_ROOT: str = "var/uploads"
+    IMAGE_UPLOAD_MAX_BYTES: int = 1_572_864  # 1.5 MB
+    CLAMSCAN_PATH: str = "clamscan"
+    REQUIRE_MALWARE_SCANNER: bool = False
+
     @property
     def cors_origins(self) -> List[str]:
         """Return BACKEND_CORS_ORIGINS as a parsed list of strings."""

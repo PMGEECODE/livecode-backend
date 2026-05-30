@@ -1,19 +1,20 @@
 import os
 import re
-import shutil
 import uuid
 import anyio
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, Form, UploadFile, File
 from app import models
 from app.api import deps
 from app.core.config import settings
+from app.core.upload_security import (
+    convert_image_to_webp,
+    read_upload_file_limited,
+    upload_path,
+    validate_image_upload,
+)
 
 router = APIRouter()
 
-UPLOAD_DIR = "static/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}
 _SLUG_RE = re.compile(r"[^a-z0-9\-]")
 
 
@@ -49,49 +50,39 @@ async def upload_image(
 
     * Requires superuser authentication.
     * Validates MIME type and file extension.
-    * Stores the image under ``static/uploads/{slug}/``.
+    * Stores the image under the restricted upload root.
     * Removes any pre-existing image in that directory before saving the new
       one, ensuring exactly one image per course.
     * Returns a relative URL via the secure /media endpoint (no internal paths exposed).
     """
     # 1. Authorization — enforced by deps.get_current_active_superuser.
 
-    # 2. MIME type validation.
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only image files are allowed.",
-        )
+    # 2. Read, size-limit, validate signature, and re-encode before storing.
+    data = await read_upload_file_limited(file, settings.IMAGE_UPLOAD_MAX_BYTES)
+    ext = validate_image_upload(file, data)
+    webp_data = await anyio.to_thread.run_sync(lambda: convert_image_to_webp(data, ext))
 
-    # 3. Extension validation.
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported image format.",
-        )
-
-    # 4. Resolve course-scoped directory.
+    # 3. Resolve course-scoped directory.
     safe_slug = _sanitize_slug(slug) if slug else "uncategorized"
-    course_dir = os.path.join(UPLOAD_DIR, safe_slug)
+    course_dir = upload_path(safe_slug)
 
-    # 5. Remove existing image(s) for this course (enforce one-image policy).
+    # 4. Remove existing image(s) for this course (enforce one-image policy).
     await anyio.to_thread.run_sync(lambda: _purge_course_dir_sync(course_dir))
 
-    # 6. Create the directory (may have been removed above or never existed).
+    # 5. Create the directory (may have been removed above or never existed).
     os.makedirs(course_dir, exist_ok=True)
 
-    # 7. Generate UUID filename and save asynchronously.
-    filename = f"{uuid.uuid4()}{ext}"
+    # 6. Generate UUID filename and save as WebP.
+    filename = f"{uuid.uuid4()}.webp"
     file_path = os.path.join(course_dir, filename)
 
     def _save() -> None:
         with open(file_path, "wb") as buf:
-            shutil.copyfileobj(file.file, buf)
+            buf.write(webp_data)
 
     await anyio.to_thread.run_sync(_save)
 
-    # 8. Return the secure media endpoint URL (no static/ path exposed).
+    # 7. Return the secure media endpoint URL (no static/ path exposed).
     return {"url": f"{settings.API_V1_STR}/media/uploads/{safe_slug}/{filename}"}
 
 
@@ -105,8 +96,6 @@ async def delete_image(
     * Requires superuser authentication.
     """
     safe_slug = _sanitize_slug(slug)
-    course_dir = os.path.join(UPLOAD_DIR, safe_slug)
+    course_dir = upload_path(safe_slug)
     await anyio.to_thread.run_sync(lambda: _purge_course_dir_sync(course_dir))
     return {"status": "success", "message": "Image(s) successfully deleted."}
-
-

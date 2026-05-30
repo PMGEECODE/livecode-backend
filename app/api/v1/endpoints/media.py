@@ -13,6 +13,7 @@ import re
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
+from app.core.upload_security import upload_root
 
 router = APIRouter()
 
@@ -24,15 +25,11 @@ _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{0,127}$")
 # Filename: UUID (hex + hyphens) followed by an allowed image extension
 _FILENAME_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-    r"\.(jpg|jpeg|png|webp|gif|svg)$",
+    r"\.(jpg|jpeg|png|webp|gif)$",
     re.IGNORECASE,
 )
 
-# Canonical absolute path of the uploads root — resolved once at startup so the
-# comparison is always against a known absolute prefix.
-_UPLOADS_ROOT = os.path.realpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "static", "uploads")
-)
+_UPLOADS_ROOT = upload_root()
 
 _MIME_MAP: dict[str, str] = {
     ".jpg": "image/jpeg",
@@ -40,7 +37,6 @@ _MIME_MAP: dict[str, str] = {
     ".png": "image/png",
     ".webp": "image/webp",
     ".gif": "image/gif",
-    ".svg": "image/svg+xml",
 }
 
 _NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")

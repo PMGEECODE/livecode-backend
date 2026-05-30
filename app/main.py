@@ -21,6 +21,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.upload_security import upload_root
 from app.core.redis import redis_manager
 from app.db.session import engine
 
@@ -153,9 +154,9 @@ async def sqlalchemy_timeout_handler(request: Request, exc: SATimeoutError):
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Ensure upload directory exists — NOT publicly mounted via StaticFiles.
-# Images are served exclusively through the validated /api/v1/media/uploads/ endpoint.
-os.makedirs("static/uploads", exist_ok=True)
+# Ensure restricted upload directory exists. It is NOT publicly mounted via StaticFiles.
+# Files are served only through validated API endpoints.
+os.makedirs(upload_root(), exist_ok=True)
 
 @app.get("/static/uploads/{slug}/{filename}", include_in_schema=False)
 async def legacy_static_redirect(slug: str, filename: str):

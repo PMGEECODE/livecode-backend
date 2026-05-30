@@ -1,6 +1,5 @@
 import os
 import re
-import shutil
 import uuid
 from typing import Any, List
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
@@ -13,14 +12,18 @@ from app.crud.partner import trusted_partner
 from app.schemas.partner import TrustedPartner, TrustedPartnerCreate, TrustedPartnerUpdate
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.upload_security import (
+    convert_image_to_webp,
+    read_upload_file_limited,
+    upload_path,
+    validate_image_upload,
+)
 
 router = APIRouter()
 
-PARTNER_UPLOAD_DIR = "static/uploads/partners"
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}
 _SAFE_RE = re.compile(r"[^a-z0-9\-]")
 
-os.makedirs(PARTNER_UPLOAD_DIR, exist_ok=True)
+os.makedirs(upload_path("partners"), exist_ok=True)
 
 
 def _sanitize_name(name: str) -> str:
@@ -110,10 +113,8 @@ async def delete_partner(
 
     # Attempt to remove the stored logo file
     if db_obj.logo_url:
-        # logo_url is like /api/v1/media/uploads/partners/<filename>
-        # Derive the local filesystem path
-        relative = db_obj.logo_url.replace(f"{settings.API_V1_STR}/media/", "", 1)
-        file_path = os.path.join("static", relative)
+        filename = db_obj.logo_url.rsplit("/", 1)[-1]
+        file_path = upload_path("partners", filename)
 
         def _remove() -> None:
             if os.path.isfile(file_path):
@@ -136,63 +137,17 @@ async def upload_partner_logo(
     - Compresses and converts raster images to lossless WebP via FFmpeg.
     - Returns a relative URL via the /media endpoint.
     """
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only image files are allowed.",
-        )
+    data = await read_upload_file_limited(file, settings.IMAGE_UPLOAD_MAX_BYTES)
+    ext = validate_image_upload(file, data)
+    webp_data = await anyio.to_thread.run_sync(lambda: convert_image_to_webp(data, ext))
 
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported image format. Allowed: jpg, jpeg, png, webp, gif, svg.",
-        )
+    saved_filename = f"{uuid.uuid4()}.webp"
+    file_path = upload_path("partners", saved_filename)
 
-    import subprocess
-    import tempfile
+    def _save() -> None:
+        with open(file_path, "wb") as buf:
+            buf.write(webp_data)
 
-    is_svg = (ext == ".svg")
-    final_ext = ".webp" if not is_svg else ".svg"
-    filename = f"{uuid.uuid4()}{final_ext}"
-    file_path = os.path.join(PARTNER_UPLOAD_DIR, filename)
-
-    def _save_and_convert() -> str:
-        if is_svg:
-            with open(file_path, "wb") as buf:
-                shutil.copyfileobj(file.file, buf)
-            return filename
-
-        # Save to temp file first
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_in:
-            shutil.copyfileobj(file.file, temp_in)
-            temp_in_path = temp_in.name
-
-        try:
-            # -lossless 1: mathematically lossless compression
-            cmd = [
-                "/usr/bin/ffmpeg",
-                "-i", temp_in_path,
-                "-c:v", "libwebp",
-                "-lossless", "1",
-                "-y",
-                file_path
-            ]
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-            return filename
-        except Exception:
-            # Fallback to copy original file
-            fallback_filename = f"{uuid.uuid4()}{ext}"
-            fallback_path = os.path.join(PARTNER_UPLOAD_DIR, fallback_filename)
-            shutil.copyfile(temp_in_path, fallback_path)
-            return fallback_filename
-        finally:
-            try:
-                os.remove(temp_in_path)
-            except Exception:
-                pass
-
-    saved_filename = await anyio.to_thread.run_sync(_save_and_convert)
+    await anyio.to_thread.run_sync(_save)
 
     return {"url": f"{settings.API_V1_STR}/media/uploads/partners/{saved_filename}"}
-

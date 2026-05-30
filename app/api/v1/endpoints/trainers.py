@@ -1,6 +1,5 @@
 import os
 import re
-import shutil
 import uuid
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
@@ -16,15 +15,20 @@ from app.schemas.trainer import (
     TrainerApplicationCreate,
     TrainerApplicationUpdate,
 )
-from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.upload_security import (
+    read_upload_file_limited,
+    scan_bytes_for_malware,
+    upload_path,
+    validate_document_upload,
+)
 
 router = APIRouter()
 
-TRAINER_UPLOAD_DIR = "static/uploads/trainers"
 ALLOWED_DOC_EXTENSIONS = {".pdf", ".doc", ".docx", ".rtf", ".txt"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
+TRAINER_UPLOAD_DIR = upload_path("trainers")
 os.makedirs(TRAINER_UPLOAD_DIR, exist_ok=True)
 
 # Compile filename validator
@@ -53,33 +57,16 @@ async def upload_trainer_document(
     - Validates file type and size.
     - Saves document securely to prevent directory traversal or unauthenticated listing.
     """
-    # Validate extension
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in ALLOWED_DOC_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported document format. Allowed formats: PDF, DOC, DOCX, RTF, TXT",
-        )
-
-    # Validate file size (chunk read to avoid loading huge files entirely in memory)
-    size = 0
-    while chunk := await file.read(65536):
-        size += len(chunk)
-        if size > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="File size exceeds the 10MB limit.",
-            )
-    
-    # Seek back to start
-    await file.seek(0)
+    data = await read_upload_file_limited(file, MAX_FILE_SIZE)
+    ext = validate_document_upload(file, data, ALLOWED_DOC_EXTENSIONS)
+    await anyio.to_thread.run_sync(lambda: scan_bytes_for_malware(data))
 
     filename = f"{uuid.uuid4()}{ext}"
     file_path = os.path.join(TRAINER_UPLOAD_DIR, filename)
 
     def _save() -> None:
         with open(file_path, "wb") as buf:
-            shutil.copyfileobj(file.file, buf)
+            buf.write(data)
 
     await anyio.to_thread.run_sync(_save)
 
@@ -101,7 +88,14 @@ async def submit_trainer_application(
     """
     # 1. Verify CV file exists
     cv_filename = application_in.cv_url
-    cv_path = os.path.join(TRAINER_UPLOAD_DIR, cv_filename)
+    if not _FILENAME_RE.match(cv_filename):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid CV filename format.",
+        )
+    cv_path = os.path.realpath(os.path.join(_UPLOADS_ROOT, cv_filename))
+    if not cv_path.startswith(_UPLOADS_ROOT + os.sep):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
     if not os.path.isfile(cv_path):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,7 +105,14 @@ async def submit_trainer_application(
     # 2. Verify Cover Letter file exists if provided
     if application_in.cover_letter_url:
         cl_filename = application_in.cover_letter_url
-        cl_path = os.path.join(TRAINER_UPLOAD_DIR, cl_filename)
+        if not _FILENAME_RE.match(cl_filename):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid cover letter filename format.",
+            )
+        cl_path = os.path.realpath(os.path.join(_UPLOADS_ROOT, cl_filename))
+        if not cl_path.startswith(_UPLOADS_ROOT + os.sep):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
         if not os.path.isfile(cl_path):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
