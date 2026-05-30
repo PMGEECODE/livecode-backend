@@ -2,6 +2,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import zipfile
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
@@ -80,27 +82,23 @@ def validate_document_upload(file: UploadFile, data: bytes, allowed_extensions: 
     if ext not in allowed_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported document format. Allowed formats: PDF, DOC, DOCX, RTF, TXT",
+            detail="Unsupported document format. Allowed formats: PDF, DOC, DOCX.",
         )
 
     if ext == ".pdf" and not data.startswith(b"%PDF-"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid PDF document content.")
-    if ext == ".rtf" and not data.lstrip().startswith(b"{\\rtf"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid RTF document content.")
     if ext == ".doc" and not data.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid DOC document content.")
     if ext == ".docx" and not data.startswith(b"PK\x03\x04"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid DOCX document content.")
-    if ext == ".txt":
-        if b"\x00" in data:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid text document content.")
+    if ext == ".docx":
         try:
-            data.decode("utf-8")
-        except UnicodeDecodeError:
-            try:
-                data.decode("latin-1")
-            except UnicodeDecodeError:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid text document content.")
+            with zipfile.ZipFile(BytesIO(data)) as archive:
+                names = set(archive.namelist())
+                if "[Content_Types].xml" not in names or not any(name.startswith("word/") for name in names):
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid DOCX document content.")
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid DOCX document content.")
 
     return ext
 
@@ -162,10 +160,11 @@ def convert_image_to_webp(data: bytes, source_ext: str) -> bytes:
                     pass
 
 
-def scan_bytes_for_malware(data: bytes) -> None:
+def scan_bytes_for_malware(data: bytes, *, require_scanner: bool | None = None) -> None:
+    scanner_required = settings.REQUIRE_MALWARE_SCANNER if require_scanner is None else require_scanner
     scanner = shutil.which(settings.CLAMSCAN_PATH) or settings.CLAMSCAN_PATH
     if not scanner or not os.path.exists(scanner):
-        if settings.REQUIRE_MALWARE_SCANNER:
+        if scanner_required:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Malware scanning service is not available.",

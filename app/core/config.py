@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     CLAMSCAN_PATH: str = "clamscan"
     REQUIRE_MALWARE_SCANNER: bool = False
 
+    # Private S3-compatible object storage
+    S3_ENDPOINT: str = ""
+    S3_REGION: str = "eu-central-1"
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+    S3_BUCKET: str = "livecode_files"
+    S3_TRAINER_PREFIX: str = "trainers"
+
     @property
     def cors_origins(self) -> List[str]:
         """Return BACKEND_CORS_ORIGINS as a parsed list of strings."""
