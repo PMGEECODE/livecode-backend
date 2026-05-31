@@ -68,6 +68,8 @@ class NewsletterSubscriberResponse(BaseModel):
     email: EmailStr
     phone: Optional[str] = None
     occupation: str
+    source: Optional[str] = None
     is_active: bool
+    unsubscribe_token: str
 
     model_config = ConfigDict(from_attributes=True)
