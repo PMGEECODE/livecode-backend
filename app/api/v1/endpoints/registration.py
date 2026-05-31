@@ -13,6 +13,7 @@ from app.schemas.registration import RegistrationCreate, RegistrationResponse
 from app.crud.registration import create_registration
 from app.db.models.registration import CourseRegistration
 from app.db.models.course import Course
+from app.db.models.payment import PaymentTransaction
 from app.core.document_generators import (
     generate_invoice_pdf,
     generate_invitation_letter_pdf,
@@ -441,7 +442,7 @@ async def submit_registration(
     }
 
     # Only send invoice/confirmation email on submission if this is an Offline registration.
-    # For Online (M-Pesa) and Paypal payments, the email is deferred until the payment transaction completes.
+    # For online payments, the email is deferred until the payment transaction completes.
     if payload.payment_method == "Offline":
         background_tasks.add_task(process_registration_email, reg_dict, course_dict)
 
@@ -481,6 +482,17 @@ async def read_registrations(
         .limit(limit)
     )
     regs = result.scalars().all()
+    reg_ids = [r.id for r in regs]
+    payment_map = {}
+    if reg_ids:
+        payment_result = await db.execute(
+            select(PaymentTransaction)
+            .filter(PaymentTransaction.registration_id.in_(reg_ids))
+            .order_by(PaymentTransaction.created_at.desc())
+        )
+        for tx in payment_result.scalars().all():
+            payment_map.setdefault(tx.registration_id, tx)
+
     return [
         {
             "id": str(r.id),
@@ -509,6 +521,20 @@ async def read_registrations(
             "group_size": r.group_size,
             "group_members_json": r.group_members_json,
             "status": r.status,
+            "payment": (
+                {
+                    "provider": payment_map[r.id].provider,
+                    "status": payment_map[r.id].status,
+                    "amount": payment_map[r.id].amount,
+                    "currency": payment_map[r.id].currency,
+                    "reference": payment_map[r.id].checkout_request_id,
+                    "receipt_number": payment_map[r.id].mpesa_receipt_number,
+                    "message": payment_map[r.id].result_desc,
+                    "paid_at": payment_map[r.id].paid_at.isoformat() if payment_map[r.id].paid_at else None,
+                }
+                if r.id in payment_map
+                else None
+            ),
         }
         for r in regs
     ]
@@ -689,4 +715,3 @@ async def download_pre_training_form(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
-

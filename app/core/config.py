@@ -47,6 +47,18 @@ class Settings(BaseSettings):
     PAYPAL_CLIENT_SECRET: str | None = None
     PAYPAL_WEBHOOK_ID: str | None = None
 
+    # Paystack configuration. PAYSTACK_SECRETE_KEY is accepted only as a
+    # compatibility fallback for older/misspelled environment variables.
+    PAYSTACK_SECRET_KEY: str | None = None
+    PAYSTACK_SECRETE_KEY: str | None = None
+    PAYSTACK_PUBLIC_KEY: str | None = None
+    PAYSTACK_CALLBACK_URL: str | None = None
+    PAYSTACK_WEBHOOK_URL: str | None = None
+
+    @property
+    def paystack_secret_key(self) -> str | None:
+        return self.PAYSTACK_SECRET_KEY or self.PAYSTACK_SECRETE_KEY
+
     # Security & CORS
     # Stored as a raw str to prevent pydantic-settings from attempting
     # json.loads() on the comma-separated value before validators run.

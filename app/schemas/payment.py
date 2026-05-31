@@ -63,3 +63,29 @@ class PaypalConfigResponse(BaseModel):
     client_id: str
     mode: str
 
+
+class PaystackInitializeRequest(BaseModel):
+    registration_id: UUID
+
+    model_config = {
+        "extra": "forbid"
+    }
+
+
+class PaystackInitializeResponse(BaseModel):
+    authorization_url: str
+    access_code: str
+    reference: str
+    amount: float
+    currency: str
+    status: str = "pending"
+
+
+class PaystackStatusResponse(BaseModel):
+    registration_id: UUID
+    reference: str
+    status: str
+    amount: float
+    currency: str
+    receipt_number: Optional[str] = None
+    message: Optional[str] = None

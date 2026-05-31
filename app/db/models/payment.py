@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, String, Float, ForeignKey, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from app.db.base_class import Base
@@ -14,6 +14,14 @@ class PaymentTransaction(Base):
     # Mpesa STK variables
     checkout_request_id = Column(String, nullable=False, unique=True, index=True)
     merchant_request_id = Column(String, nullable=True)
+    provider = Column(String, nullable=False, default="mpesa", server_default="mpesa", index=True)
+    provider_reference = Column(String, nullable=True, unique=True, index=True)
+    currency = Column(String, nullable=True)
+    authorization_url = Column(Text, nullable=True)
+    access_code = Column(String, nullable=True)
+    gateway_response = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
     
     amount = Column(Float, nullable=False)
     phone_number = Column(String, nullable=False)
@@ -41,6 +49,14 @@ class PaymentTransaction(Base):
         mpesa_receipt_number=None,
         result_code=None,
         result_desc=None,
+        provider="mpesa",
+        provider_reference=None,
+        currency=None,
+        authorization_url=None,
+        access_code=None,
+        gateway_response=None,
+        metadata_json=None,
+        paid_at=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -53,3 +69,11 @@ class PaymentTransaction(Base):
         self.mpesa_receipt_number = mpesa_receipt_number
         self.result_code = result_code
         self.result_desc = result_desc
+        self.provider = provider
+        self.provider_reference = provider_reference
+        self.currency = currency
+        self.authorization_url = authorization_url
+        self.access_code = access_code
+        self.gateway_response = gateway_response
+        self.metadata_json = metadata_json
+        self.paid_at = paid_at

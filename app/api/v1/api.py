@@ -12,10 +12,10 @@ api_router.include_router(registration.router, prefix="/registrations", tags=["r
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
+api_router.include_router(payments.router, prefix="/endpoints/payments", tags=["payments"])
 api_router.include_router(upload.router, prefix="/upload", tags=["upload"])
 api_router.include_router(media.router, prefix="/media", tags=["media"])
 api_router.include_router(partners.router, prefix="/partners", tags=["partners"])
 api_router.include_router(trainers.router, prefix="/trainers", tags=["trainers"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(newsletter.router, prefix="/newsletter", tags=["newsletter"])
-

@@ -13,6 +13,7 @@ from app.api.deps import get_db
 from app.db.base import Base
 from app.db.models.registration import CourseRegistration
 from app.db.models.payment import PaymentTransaction
+from app.db.models.course import Course, CourseLogistics
 from app.services.mpesa import mpesa_service
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -132,6 +133,202 @@ async def test_mpesa_status_route_not_found(async_client: AsyncClient):
     """Verify status route handles non-existent checkout request IDs gracefully."""
     response = await async_client.get("/api/v1/payments/mpesa/status/nonexistent")
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+@patch("app.services.paystack.PaystackService.initialize_transaction")
+async def test_paystack_initialize_uses_backend_amount(mock_initialize, async_client: AsyncClient):
+    course_id = uuid.uuid4()
+    reg_id = uuid.uuid4()
+
+    async with TestingSessionLocal() as db:
+        course = Course(
+            id=course_id,
+            title="Secure Payments",
+            slug="secure-payments",
+            category="Technology",
+        )
+        logistics = CourseLogistics(
+            course_id=course_id,
+            price_usd=100.0,
+            price_kes=13000.0,
+        )
+        registration = CourseRegistration(
+            id=reg_id,
+            course_id=course_id,
+            course_title="Secure Payments",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            currency="USD",
+            status="pending",
+        )
+        db.add_all([course, logistics, registration])
+        await db.commit()
+
+    mock_initialize.return_value = {
+        "authorization_url": "https://checkout.paystack.test/pay/ref",
+        "access_code": "access_123",
+        "reference": "ignored",
+    }
+
+    response = await async_client.post(
+        "/api/v1/payments/paystack/initialize",
+        json={"registration_id": str(reg_id)},
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    data = response.json()
+    assert data["authorization_url"] == "https://checkout.paystack.test/pay/ref"
+    assert data["amount"] == 116.0
+    assert data["currency"] == "USD"
+
+    call_kwargs = mock_initialize.call_args.kwargs
+    assert call_kwargs["amount"] == 116.0
+    assert call_kwargs["currency"] == "USD"
+    assert call_kwargs["email"] == "jane@example.com"
+
+    async with TestingSessionLocal() as db:
+        tx_res = await db.execute(select(PaymentTransaction))
+        tx = tx_res.scalars().first()
+        assert tx is not None
+        assert tx.provider == "paystack"
+        assert tx.status == "pending"
+        assert tx.amount == 116.0
+
+
+@pytest.mark.asyncio
+@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.services.paystack.PaystackService.verify_transaction")
+async def test_paystack_status_verifies_and_confirms_registration(mock_verify, mock_email, async_client: AsyncClient):
+    course_id = uuid.uuid4()
+    reg_id = uuid.uuid4()
+    reference = "psk_test_reference"
+
+    async with TestingSessionLocal() as db:
+        course = Course(
+            id=course_id,
+            title="Secure Payments",
+            slug="secure-payments-verify",
+            category="Technology",
+        )
+        logistics = CourseLogistics(
+            course_id=course_id,
+            price_usd=100.0,
+        )
+        registration = CourseRegistration(
+            id=reg_id,
+            course_id=course_id,
+            course_title="Secure Payments",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            currency="USD",
+            status="pending",
+        )
+        transaction = PaymentTransaction(
+            registration_id=reg_id,
+            checkout_request_id=reference,
+            amount=116.0,
+            phone_number="Paystack",
+            provider="paystack",
+            provider_reference=reference,
+            currency="USD",
+            status="pending",
+        )
+        db.add_all([course, logistics, registration, transaction])
+        await db.commit()
+
+    mock_verify.return_value = {
+        "status": "success",
+        "reference": reference,
+        "amount": 11600,
+        "currency": "USD",
+        "id": "paystack_receipt_123",
+        "paid_at": "2026-05-31T12:00:00.000Z",
+    }
+
+    response = await async_client.get(f"/api/v1/payments/paystack/status/{reference}")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["status"] == "completed"
+    assert data["receipt_number"] == "paystack_receipt_123"
+
+    async with TestingSessionLocal() as db:
+        reg_res = await db.execute(select(CourseRegistration).filter(CourseRegistration.id == reg_id))
+        registration = reg_res.scalars().first()
+        assert registration.status == "confirmed"
+
+        tx_res = await db.execute(select(PaymentTransaction).filter(PaymentTransaction.checkout_request_id == reference))
+        tx = tx_res.scalars().first()
+        assert tx.status == "completed"
+        assert tx.result_code == "0"
+
+
+@pytest.mark.asyncio
+@patch("app.core.config.settings.PUBLIC_SITE_URL", "https://livecodetechnologies.com")
+@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.services.paystack.PaystackService.verify_transaction")
+async def test_paystack_callback_redirects_to_registration_success_page(mock_verify, mock_email, async_client: AsyncClient):
+    course_id = uuid.uuid4()
+    reg_id = uuid.uuid4()
+    reference = "psk_callback_reference"
+
+    async with TestingSessionLocal() as db:
+        course = Course(
+            id=course_id,
+            title="Secure Payments",
+            slug="secure-payments-callback",
+            category="Technology",
+        )
+        logistics = CourseLogistics(
+            course_id=course_id,
+            price_usd=100.0,
+        )
+        registration = CourseRegistration(
+            id=reg_id,
+            course_id=course_id,
+            course_title="Secure Payments",
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            registration_type="individual",
+            currency="USD",
+            status="pending",
+        )
+        transaction = PaymentTransaction(
+            registration_id=reg_id,
+            checkout_request_id=reference,
+            amount=116.0,
+            phone_number="Paystack",
+            provider="paystack",
+            provider_reference=reference,
+            currency="USD",
+            status="pending",
+        )
+        db.add_all([course, logistics, registration, transaction])
+        await db.commit()
+
+    mock_verify.return_value = {
+        "status": "success",
+        "reference": reference,
+        "amount": 11600,
+        "currency": "USD",
+        "id": "paystack_receipt_456",
+        "paid_at": "2026-05-31T12:00:00.000Z",
+    }
+
+    response = await async_client.get(
+        f"/api/v1/payments/paystack/callback?reference={reference}",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == status.HTTP_303_SEE_OTHER
+    assert response.headers["location"] == (
+        "https://livecodetechnologies.com/trainings/secure-payments-callback/register"
+        f"?payment_provider=paystack&payment_status=success&reference={reference}&registration_id={reg_id}"
+    )
 
 
 @pytest.mark.asyncio
@@ -673,6 +870,4 @@ async def test_paypal_webhook_success(mock_verify, mock_email, async_client: Asy
         t_db = (await db.execute(select(PaymentTransaction).filter(PaymentTransaction.checkout_request_id == f"paypal_{order_id}"))).scalars().first()
         assert t_db.status == "completed"
         assert t_db.mpesa_receipt_number == "capture_webhook_789"
-
-
 
