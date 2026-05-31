@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     PROJECT_NAME: str = "Livecode Technologies API"
+    PUBLIC_SITE_URL: str = "https://livecodetechnologies.com"
 
     # Database
     DATABASE_URL: str
@@ -66,6 +67,11 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str = ""
     S3_BUCKET: str = "livecode_files"
     S3_TRAINER_PREFIX: str = "trainers"
+
+    # Newsletter automation
+    NEWSLETTER_WORKER_ENABLED: bool = True
+    NEWSLETTER_WORKER_INTERVAL_SECONDS: int = 300
+    NEWSLETTER_DIGEST_INTERVAL_DAYS: int = 7
 
     @property
     def cors_origins(self) -> List[str]:
