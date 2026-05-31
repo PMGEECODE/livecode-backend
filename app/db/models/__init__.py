@@ -7,3 +7,4 @@ from app.db.models.contact import Contact  # noqa
 from app.db.models.payment import PaymentTransaction  # noqa
 from app.db.models.partner import TrustedPartner  # noqa
 from app.db.models.trainer import TrainerApplication  # noqa
+from app.db.models.analytics import ProductAnalyticsEvent  # noqa
