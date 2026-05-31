@@ -22,3 +22,32 @@ class ProductAnalyticsEvent(Base):
     user_agent = Column(Text, nullable=True)
     ip_hash = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __init__(
+        self,
+        *,
+        event_name=None,
+        page_path=None,
+        page_title=None,
+        entity_type=None,
+        entity_id=None,
+        entity_title=None,
+        referrer=None,
+        session_id=None,
+        metadata_json=None,
+        user_agent=None,
+        ip_hash=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.event_name = event_name
+        self.page_path = page_path
+        self.page_title = page_title
+        self.entity_type = entity_type
+        self.entity_id = entity_id
+        self.entity_title = entity_title
+        self.referrer = referrer
+        self.session_id = session_id
+        self.metadata_json = metadata_json
+        self.user_agent = user_agent
+        self.ip_hash = ip_hash

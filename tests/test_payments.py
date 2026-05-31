@@ -198,7 +198,7 @@ async def test_paystack_initialize_uses_backend_amount(mock_initialize, async_cl
 
 
 @pytest.mark.asyncio
-@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.api.v1.endpoints.payment_modules.paystack.process_registration_email")
 @patch("app.services.paystack.PaystackService.verify_transaction")
 async def test_paystack_status_verifies_and_confirms_registration(mock_verify, mock_email, async_client: AsyncClient):
     course_id = uuid.uuid4()
@@ -268,7 +268,8 @@ async def test_paystack_status_verifies_and_confirms_registration(mock_verify, m
 
 @pytest.mark.asyncio
 @patch("app.core.config.settings.PUBLIC_SITE_URL", "https://livecodetechnologies.com")
-@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.core.config.settings.PAYSTACK_FRONTEND_RETURN_URL", "https://livecodetechnologies.com")
+@patch("app.api.v1.endpoints.payment_modules.paystack.process_registration_email")
 @patch("app.services.paystack.PaystackService.verify_transaction")
 async def test_paystack_callback_redirects_to_registration_success_page(mock_verify, mock_email, async_client: AsyncClient):
     course_id = uuid.uuid4()
@@ -332,7 +333,7 @@ async def test_paystack_callback_redirects_to_registration_success_page(mock_ver
 
 
 @pytest.mark.asyncio
-@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.api.v1.endpoints.payment_modules.mpesa.process_registration_email")
 async def test_mpesa_callback_success(mock_email, async_client: AsyncClient):
     """Verify that Safaricom callback updates transaction/registration and sends email on success."""
     reg_id = uuid.uuid4()
@@ -436,7 +437,7 @@ async def test_payment_status_sql_injection_mitigation(async_client: AsyncClient
 
 # ─── E) STRIPE CHARGE TESTS ───
 @pytest.mark.asyncio
-@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.api.v1.endpoints.payment_modules.stripe.process_registration_email")
 async def test_stripe_charge_success(mock_email, async_client: AsyncClient):
     """Verify that a valid Stripe charge updates transaction/registration and sends email."""
     reg_id = uuid.uuid4()
@@ -692,7 +693,7 @@ async def test_paypal_create_order_already_confirmed(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("app.api.v1.endpoints.payments.process_registration_email")
+@patch("app.api.v1.endpoints.payment_modules.paypal.process_registration_email")
 @patch("app.services.paypal.PayPalService.capture_order")
 async def test_paypal_capture_order_success(mock_capture, mock_email, async_client: AsyncClient):
     """Verify capturing order updates statuses and triggers email confirmation."""
@@ -805,8 +806,8 @@ async def test_paypal_sql_injection_mitigation(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("app.api.v1.endpoints.payments.process_registration_email")
-@patch("app.api.v1.endpoints.payments.paypal_service.verify_webhook_signature")
+@patch("app.api.v1.endpoints.payment_modules.paypal.process_registration_email")
+@patch("app.api.v1.endpoints.payment_modules.paypal.paypal_service.verify_webhook_signature")
 async def test_paypal_webhook_success(mock_verify, mock_email, async_client: AsyncClient):
     """Verify that PAYMENT.CAPTURE.COMPLETED webhook confirms registration."""
     mock_verify.return_value = True
@@ -870,4 +871,3 @@ async def test_paypal_webhook_success(mock_verify, mock_email, async_client: Asy
         t_db = (await db.execute(select(PaymentTransaction).filter(PaymentTransaction.checkout_request_id == f"paypal_{order_id}"))).scalars().first()
         assert t_db.status == "completed"
         assert t_db.mpesa_receipt_number == "capture_webhook_789"
-

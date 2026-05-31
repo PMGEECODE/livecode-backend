@@ -22,6 +22,33 @@ class NewsletterSubscriber(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    def __init__(
+        self,
+        *,
+        full_name=None,
+        email=None,
+        phone=None,
+        occupation=None,
+        source=None,
+        unsubscribe_token=None,
+        is_active=True,
+        welcome_email_sent=False,
+        last_digest_sent_at=None,
+        unsubscribed_at=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.full_name = full_name
+        self.email = email
+        self.phone = phone
+        self.occupation = occupation
+        self.source = source
+        self.unsubscribe_token = unsubscribe_token
+        self.is_active = is_active
+        self.welcome_email_sent = welcome_email_sent
+        self.last_digest_sent_at = last_digest_sent_at
+        self.unsubscribed_at = unsubscribed_at
+
 
 class NewsletterDelivery(Base):
     __tablename__ = "newsletter_deliveries"
@@ -36,3 +63,24 @@ class NewsletterDelivery(Base):
     scheduled_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __init__(
+        self,
+        *,
+        subscriber_email=None,
+        subject=None,
+        html_body=None,
+        status="pending",
+        error_message=None,
+        attempts=0,
+        sent_at=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.subscriber_email = subscriber_email
+        self.subject = subject
+        self.html_body = html_body
+        self.status = status
+        self.error_message = error_message
+        self.attempts = attempts
+        self.sent_at = sent_at

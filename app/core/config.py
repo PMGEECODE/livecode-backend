@@ -54,10 +54,15 @@ class Settings(BaseSettings):
     PAYSTACK_PUBLIC_KEY: str | None = None
     PAYSTACK_CALLBACK_URL: str | None = None
     PAYSTACK_WEBHOOK_URL: str | None = None
+    PAYSTACK_FRONTEND_RETURN_URL: str | None = None
 
     @property
     def paystack_secret_key(self) -> str | None:
         return self.PAYSTACK_SECRET_KEY or self.PAYSTACK_SECRETE_KEY
+
+    @property
+    def paystack_frontend_return_url(self) -> str:
+        return (self.PAYSTACK_FRONTEND_RETURN_URL or self.PUBLIC_SITE_URL).rstrip("/")
 
     # Security & CORS
     # Stored as a raw str to prevent pydantic-settings from attempting
