@@ -15,6 +15,9 @@ ALLOWED_ANALYTICS_EVENTS = {
     "product_viewed",
     "product_preview_clicked",
     "callback_requested",
+    "page_view",
+    "page_engagement",
+    "element_clicked",
 }
 
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -40,6 +43,9 @@ class AnalyticsEventCreate(BaseModel):
     entity_title: Optional[str] = None
     referrer: Optional[str] = None
     session_id: Optional[str] = None
+    duration_ms: Optional[int] = None
+    scroll_depth_percent: Optional[int] = None
+    interaction_count: Optional[int] = None
     metadata: Optional[Dict[str, Any]] = None
 
     @field_validator("event_name")
@@ -70,6 +76,20 @@ class AnalyticsEventCreate(BaseModel):
     def validate_entity_id(cls, value: Optional[str]) -> Optional[str]:
         return _clean_optional_text(value, 160)
 
+    @field_validator("duration_ms", "interaction_count")
+    @classmethod
+    def validate_non_negative_int(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        return max(0, min(int(value), 86_400_000))
+
+    @field_validator("scroll_depth_percent")
+    @classmethod
+    def validate_scroll_depth(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        return max(0, min(int(value), 100))
+
     @field_validator("metadata")
     @classmethod
     def validate_metadata(cls, value: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -92,6 +112,9 @@ class AnalyticsEventResponse(BaseModel):
     entity_type: Optional[str] = None
     entity_id: Optional[str] = None
     entity_title: Optional[str] = None
+    duration_ms: Optional[int] = None
+    scroll_depth_percent: Optional[int] = None
+    interaction_count: Optional[int] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

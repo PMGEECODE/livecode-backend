@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, DateTime, String, Text, func
+from sqlalchemy import Column, DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.types import JSON
 
@@ -18,6 +18,9 @@ class ProductAnalyticsEvent(Base):
     entity_title = Column(String(300), nullable=True)
     referrer = Column(String(500), nullable=True)
     session_id = Column(String(80), nullable=True, index=True)
+    duration_ms = Column(Integer, nullable=True)
+    scroll_depth_percent = Column(Integer, nullable=True)
+    interaction_count = Column(Integer, nullable=True)
     metadata_json = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     user_agent = Column(Text, nullable=True)
     ip_hash = Column(String(64), nullable=True, index=True)
@@ -34,6 +37,9 @@ class ProductAnalyticsEvent(Base):
         entity_title=None,
         referrer=None,
         session_id=None,
+        duration_ms=None,
+        scroll_depth_percent=None,
+        interaction_count=None,
         metadata_json=None,
         user_agent=None,
         ip_hash=None,
@@ -48,6 +54,9 @@ class ProductAnalyticsEvent(Base):
         self.entity_title = entity_title
         self.referrer = referrer
         self.session_id = session_id
+        self.duration_ms = duration_ms
+        self.scroll_depth_percent = scroll_depth_percent
+        self.interaction_count = interaction_count
         self.metadata_json = metadata_json
         self.user_agent = user_agent
         self.ip_hash = ip_hash
