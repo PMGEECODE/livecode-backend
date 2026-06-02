@@ -9,7 +9,7 @@ from app.api import deps
 from app.core.limiter import limiter
 from app.db.models.newsletter import NewsletterSubscriber
 from app.schemas.newsletter import NewsletterSubscribe, NewsletterSubscriberResponse
-from app.services.newsletter_worker import new_unsubscribe_token
+from app.services.newsletter_worker import new_unsubscribe_token, queue_delivery, digest_email
 
 router = APIRouter()
 
@@ -74,3 +74,22 @@ async def list_newsletter_subscribers(
 ) -> Any:
     result = await db.execute(select(NewsletterSubscriber).order_by(NewsletterSubscriber.created_at.desc()).limit(500))
     return result.scalars().all()
+
+
+@router.post("/dispatch", status_code=status.HTTP_202_ACCEPTED)
+async def dispatch_newsletter_manually(
+    db: AsyncSession = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_active_superuser),
+) -> dict:
+    """Manually dispatch the weekly digest newsletter to all active subscribers."""
+    now = datetime.now(timezone.utc)
+    result = await db.execute(select(NewsletterSubscriber).where(NewsletterSubscriber.is_active == True))  # noqa: E712
+    subscribers = result.scalars().all()
+    count = 0
+    for subscriber in subscribers:
+        subject, html_body = digest_email(subscriber)
+        await queue_delivery(db, subscriber, subject, html_body)
+        subscriber.last_digest_sent_at = now
+        count += 1
+    await db.commit()
+    return {"message": f"Successfully queued newsletter dispatch to {count} active subscribers."}
