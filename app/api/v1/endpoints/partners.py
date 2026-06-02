@@ -33,6 +33,10 @@ def _sanitize_name(name: str) -> str:
     return slug or "partner"
 
 
+from app.core.redis import redis_manager
+from fastapi.encoders import jsonable_encoder
+import json
+
 # ──────────────────────────────────────────────
 # Public endpoint — no auth required
 # ──────────────────────────────────────────────
@@ -45,7 +49,24 @@ async def list_active_partners(
     db: AsyncSession = Depends(deps.get_db),
 ) -> Any:
     """Return all active trusted partners ordered by display_order."""
-    return await trusted_partner.get_all_active(db)
+    cache_key = "partners:list:active"
+    
+    # 1. Try Redis Cache
+    cached_data = await redis_manager.get(cache_key)
+    if cached_data:
+        try:
+            return json.loads(cached_data)
+        except Exception:
+            pass
+            
+    # 2. Fetch from DB
+    partners = await trusted_partner.get_all_active(db)
+    
+    # 3. Save to Redis Cache (1 hour)
+    if partners:
+        await redis_manager.set(cache_key, json.dumps(jsonable_encoder(partners)), expire=3600)
+        
+    return partners
 
 
 # ──────────────────────────────────────────────
@@ -69,7 +90,9 @@ async def create_partner(
     partner_in: TrustedPartnerCreate,
 ) -> Any:
     """Create a new trusted partner."""
-    return await trusted_partner.create(db, obj_in=partner_in)
+    obj = await trusted_partner.create(db, obj_in=partner_in)
+    await redis_manager.delete("partners:list:active")
+    return obj
 
 
 @router.put("/{partner_id}", response_model=TrustedPartner)
@@ -90,7 +113,10 @@ async def update_partner(
     db_obj = await trusted_partner.get(db, id=uid)
     if not db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found.")
-    return await trusted_partner.update(db, db_obj=db_obj, obj_in=partner_in)
+    
+    obj = await trusted_partner.update(db, db_obj=db_obj, obj_in=partner_in)
+    await redis_manager.delete("partners:list:active")
+    return obj
 
 
 @router.delete("/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -123,6 +149,7 @@ async def delete_partner(
         await anyio.to_thread.run_sync(_remove)
 
     await trusted_partner.remove(db, id=uid)
+    await redis_manager.delete("partners:list:active")
 
 
 @router.post("/upload-logo", response_model=dict)

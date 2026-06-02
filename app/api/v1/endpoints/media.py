@@ -73,8 +73,8 @@ async def serve_course_image(slug: str, filename: str) -> FileResponse:
         path=candidate,
         media_type=media_type,
         headers={
-            # Public images; 1-hour browser cache, 1-day CDN cache.
-            "Cache-Control": "public, max-age=3600, s-maxage=86400",
+            # Public images; 1-year browser cache, 1-year CDN cache (Immutable UUIDs).
+            "Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable",
             # Prevent MIME-sniffing attacks.
             "X-Content-Type-Options": "nosniff",
         },
