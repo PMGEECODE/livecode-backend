@@ -249,11 +249,76 @@ async def list_trainer_applications(
     return await trainer_application.get_multi_by_status(db, status=status, skip=skip, limit=limit)
 
 
+async def notify_trainer_approval(application: TrainerApplicationResponse) -> None:
+    html_body = f"""
+    <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;">
+      <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;">
+        <div style="background:#001A4D;color:#ffffff;padding:22px 24px;">
+          <h1 style="margin:0;color:#F49220;font-size:22px;">Application Approved</h1>
+        </div>
+        <div style="padding:24px;color:#334155;line-height:1.6;">
+          <p>Dear {escape(application.full_name)},</p>
+          <p>Congratulations! Your application to become a trainer at <b>Livecode Technologies Ltd</b> has been <b>approved</b>.</p>
+          <p>Our faculty team is excited to welcome you and will reach out to you shortly with next steps, scheduling, and onboarding information.</p>
+          <p>We look forward to a successful collaboration.</p>
+          <p style="margin-top:20px;">Best regards,<br><b>Management Team</b><br>Livecode Technologies Ltd</p>
+        </div>
+      </div>
+    </div>
+    """
+    await send_email_async(
+        str(application.email),
+        "Update: Your Trainer Application is Approved",
+        html_body,
+    )
+
+
+async def notify_trainer_rejection(application: TrainerApplicationResponse) -> None:
+    from app.core.document_modules.trainer_rejection import generate_trainer_rejection_letter_pdf
+    
+    html_body = f"""
+    <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;">
+      <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;">
+        <div style="background:#001A4D;color:#ffffff;padding:22px 24px;">
+          <h1 style="margin:0;color:#F49220;font-size:22px;">Update on Your Application</h1>
+        </div>
+        <div style="padding:24px;color:#334155;line-height:1.6;">
+          <p>Dear {escape(application.full_name)},</p>
+          <p>Thank you for your interest in joining Livecode Technologies Ltd as a trainer.</p>
+          <p>Please find attached an official letter regarding the status of your application.</p>
+          <p style="margin-top:20px;">Best regards,<br><b>Management Team</b><br>Livecode Technologies Ltd</p>
+        </div>
+      </div>
+    </div>
+    """
+    
+    pdf_buffer = await anyio.to_thread.run_sync(
+        lambda: generate_trainer_rejection_letter_pdf(application)
+    )
+    
+    attachments = [
+        {
+            "maintype": "application",
+            "subtype": "pdf",
+            "filename": "Application_Status_Livecode.pdf",
+            "content": pdf_buffer.getvalue(),
+        }
+    ]
+    
+    await send_email_async(
+        str(application.email),
+        "Update: Trainer Application Status",
+        html_body,
+        attachments=attachments,
+    )
+
+
 @router.put("/applications/{app_id}/status", response_model=TrainerApplicationResponse)
 async def update_application_status(
     *,
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_superuser),
+    background_tasks: BackgroundTasks,
     app_id: str,
     status_in: TrainerApplicationUpdate,
 ) -> Any:
@@ -275,7 +340,18 @@ async def update_application_status(
             detail="Trainer application not found.",
         )
 
-    return await trainer_application.update(db, db_obj=db_obj, obj_in=status_in)
+    old_status = db_obj.status
+    updated = await trainer_application.update(db, db_obj=db_obj, obj_in=status_in)
+
+    # Trigger emails on status change
+    if old_status != updated.status:
+        response_model = TrainerApplicationResponse.model_validate(updated)
+        if updated.status == "approved":
+            background_tasks.add_task(notify_trainer_approval, response_model)
+        elif updated.status == "declined":
+            background_tasks.add_task(notify_trainer_rejection, response_model)
+
+    return updated
 
 
 @router.get("/applications/{app_id}/cv")
