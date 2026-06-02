@@ -86,7 +86,7 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
                 img_html = f"""
                 <tr>
                   <td style="padding-bottom:12px;">
-                    <a href="{base}/trainings/{course.category}/{course.slug}" target="_blank" style="display:block; text-decoration:none;">
+                    <a href="{base}/trainings/{course.slug}" target="_blank" style="display:block; text-decoration:none;">
                       <img src="{img_src}" alt="{escape(course.title)}" style="display:block; width:100%; max-width:600px; border-radius:8px; border:1px solid #e2e8f0; object-fit:cover; max-height:200px;" />
                     </a>
                   </td>
@@ -98,12 +98,12 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
                 <tr>
                   <td>
                     <h3 style="margin:0; font-size:15px; font-weight:800; line-height:1.4;">
-                      <a href="{base}/trainings/{course.category}/{course.slug}" target="_blank" style="color:#2563eb; text-decoration:none;">{escape(course.title)}</a>
+                      <a href="{base}/trainings/{course.slug}" target="_blank" style="color:#2563eb; text-decoration:none;">{escape(course.title)}</a>
                     </h3>
                     <p style="margin:8px 0 12px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
                       {escape(desc_snippet)}
                     </p>
-                    <a href="{base}/trainings/{course.category}/{course.slug}" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">View course syllabus</a>
+                    <a href="{base}/trainings/{course.slug}" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">View course syllabus</a>
                   </td>
                 </tr>
               </table>"""

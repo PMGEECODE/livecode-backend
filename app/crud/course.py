@@ -11,6 +11,8 @@ from app.schemas.course import CourseCreate, CourseUpdate
 import json
 import re
 from datetime import datetime, timedelta
+from functools import lru_cache
+import asyncio
 
 class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
     def _normalize_slug(self, slug: str) -> str:
@@ -19,6 +21,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         normalized = re.sub(r"-{2,}", "-", normalized)
         return normalized.strip("-")
 
+    @lru_cache(maxsize=2048)
     def _parse_datetime(self, date_str: str, end_of_day: bool = False) -> Optional[datetime]:
         if not date_str:
             return None
@@ -40,6 +43,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
                 continue
         return None
 
+    @lru_cache(maxsize=2048)
     def _parse_schedule_date_string(self, date_str: str, year: int, end_of_day: bool = False) -> Optional[datetime]:
         if not date_str:
             return None
@@ -193,7 +197,11 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
             
             now = datetime.now()
             filtered_courses = []
-            for course in all_courses:
+            for i, course in enumerate(all_courses):
+                # Yield to the async event loop periodically to prevent blocking and timeout errors
+                if i % 10 == 0:
+                    await asyncio.sleep(0)
+                
                 has_active = False
                 for s in course.schedules:
                     # Skip schedules explicitly disabled by admin
