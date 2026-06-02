@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,7 @@ from app.api import deps
 from app.core.limiter import limiter
 from app.db.models.newsletter import NewsletterSubscriber
 from app.schemas.newsletter import NewsletterSubscribe, NewsletterSubscriberResponse
-from app.services.newsletter_worker import new_unsubscribe_token, queue_delivery, digest_email
+from app.services.newsletter_worker import new_unsubscribe_token, queue_delivery, digest_email, trigger_newsletter_worker
 
 router = APIRouter()
 
@@ -20,6 +20,7 @@ async def subscribe_newsletter(
     request: Request,
     response: Response,
     payload: NewsletterSubscribe,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(deps.get_db),
 ) -> Any:
     email = str(payload.email).lower()
@@ -37,6 +38,7 @@ async def subscribe_newsletter(
         db.add(existing)
         await db.commit()
         await db.refresh(existing)
+        background_tasks.add_task(trigger_newsletter_worker)
         return existing
 
     subscriber = NewsletterSubscriber(
@@ -50,6 +52,7 @@ async def subscribe_newsletter(
     db.add(subscriber)
     await db.commit()
     await db.refresh(subscriber)
+    background_tasks.add_task(trigger_newsletter_worker)
     return subscriber
 
 
@@ -78,6 +81,7 @@ async def list_newsletter_subscribers(
 
 @router.post("/dispatch", status_code=status.HTTP_202_ACCEPTED)
 async def dispatch_newsletter_manually(
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(deps.get_db),
     current_user=Depends(deps.get_current_active_superuser),
 ) -> dict:
@@ -92,4 +96,5 @@ async def dispatch_newsletter_manually(
         subscriber.last_digest_sent_at = now
         count += 1
     await db.commit()
+    background_tasks.add_task(trigger_newsletter_worker)
     return {"message": f"Successfully queued newsletter dispatch to {count} active subscribers."}

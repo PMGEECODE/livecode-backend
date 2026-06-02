@@ -25,6 +25,7 @@ def _unsubscribe_url(token: str) -> str:
 
 def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: str, intro_text: str) -> str:
     name = escape(subscriber.full_name)
+    base = settings.PUBLIC_SITE_URL.strip().rstrip("/")
     unsubscribe_url = _unsubscribe_url(subscriber.unsubscribe_token)
     
     return f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -43,8 +44,8 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
           <!-- Logo Header -->
           <tr>
             <td align="center" style="padding: 24px 0 16px 0; background-color: #ffffff;">
-              <a href="https://livecodetechnologies.com" target="_blank" style="text-decoration:none;">
-                <img src="https://livecodetechnologies.com/assets/logos/logo.png" alt="Livecode Technologies" style="display:block; height:48px; max-height:48px; width:auto; border:none; outline:none;" onerror="this.onerror=null; this.src='https://livecodetechnologies.com/logo.png';" />
+              <a href="{base}" target="_blank" style="text-decoration:none;">
+                <img src="{base}/logo.png" alt="Livecode Technologies" style="display:block; height:48px; max-height:48px; width:auto; border:none; outline:none;" onerror="this.onerror=null; this.src='https://livecodetechnologies.com/logo.png';" />
               </a>
             </td>
           </tr>
@@ -62,15 +63,15 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
                     <table border="0" cellpadding="0" cellspacing="0" style="margin-top:20px;">
                       <tr>
                         <td>
-                          <a href="https://livecodetechnologies.com/blog" target="_blank" style="color:#ffffff; font-size:12px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; padding:0 8px;">Blogs & Articles</a>
+                          <a href="{base}/blog" target="_blank" style="color:#ffffff; font-size:12px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; padding:0 8px;">Blogs & Articles</a>
                         </td>
                         <td style="color:#F49220; font-size:12px; font-weight:700; padding:0 4px;">•</td>
                         <td>
-                          <a href="https://livecodetechnologies.com/training-calendar" target="_blank" style="color:#ffffff; font-size:12px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; padding:0 8px;">Training Courses</a>
+                          <a href="{base}/training-calendar" target="_blank" style="color:#ffffff; font-size:12px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; padding:0 8px;">Training Courses</a>
                         </td>
                         <td style="color:#F49220; font-size:12px; font-weight:700; padding:0 4px;">•</td>
                         <td>
-                          <a href="https://livecodetechnologies.com/services" target="_blank" style="color:#ffffff; font-size:12px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; padding:0 8px;">Technical Services</a>
+                          <a href="{base}/services" target="_blank" style="color:#ffffff; font-size:12px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em; padding:0 8px;">Technical Services</a>
                         </td>
                       </tr>
                     </table>
@@ -171,7 +172,7 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
                 <tr>
                   <td>
                     <h3 style="margin:0; font-size:15px; font-weight:800; line-height:1.4;">
-                      <a href="https://livecodetechnologies.com/services" target="_blank" style="color:#2563eb; text-decoration:none;">24/7 Managed Infrastructure & Cloud Support</a>
+                      <a href="{base}/services" target="_blank" style="color:#2563eb; text-decoration:none;">24/7 Managed Infrastructure & Cloud Support</a>
                     </h3>
                     <p style="margin:8px 0 16px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
                       We provide continuous infrastructure monitoring, automated security patches, cloud migrations, database clustering, and high-performance server tuning to ensure that your business-critical assets run smoothly.
@@ -184,7 +185,7 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
               <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top:12px;">
                 <tr>
                   <td align="center">
-                    <a href="https://livecodetechnologies.com/training-calendar" target="_blank" style="display:inline-block; background-color:#F49220; color:#ffffff; padding:14px 28px; border-radius:8px; text-decoration:none; font-weight:800; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; box-shadow:0 4px 6px -1px rgba(244,146,32,0.2);">Explore Training Calendar</a>
+                    <a href="{base}/training-calendar" target="_blank" style="display:inline-block; background-color:#F49220; color:#ffffff; padding:14px 28px; border-radius:8px; text-decoration:none; font-weight:800; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; box-shadow:0 4px 6px -1px rgba(244,146,32,0.2);">Explore Training Calendar</a>
                   </td>
                 </tr>
               </table>
@@ -214,13 +215,16 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
                 <!-- Social Links -->
                 <tr>
                   <td align="center" style="padding-bottom:24px;">
-                    <a href="https://www.linkedin.com/company/livecode-technologies/" target="_blank" style="display:inline-block; margin:0 8px; text-decoration:none;">
+                    <a href="https://www.facebook.com/www.livecodetech.co.ke" target="_blank" style="display:inline-block; margin:0 8px; text-decoration:none;">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" alt="Facebook" style="display:block; width:22px; height:22px;" />
+                    </a>
+                    <a href="https://www.linkedin.com/company/73192786/admin/dashboard/" target="_blank" style="display:inline-block; margin:0 8px; text-decoration:none;">
                       <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png" alt="LinkedIn" style="display:block; width:22px; height:22px;" />
                     </a>
-                    <a href="https://x.com/livecode_tech" target="_blank" style="display:inline-block; margin:0 8px; text-decoration:none;">
+                    <a href="https://x.com/LivecodeL" target="_blank" style="display:inline-block; margin:0 8px; text-decoration:none;">
                       <img src="https://img.icons8.com/ios-filled/50/ffffff/twitter.png" alt="Twitter/X" style="display:block; width:22px; height:22px;" />
                     </a>
-                    <a href="https://livecodetechnologies.com" target="_blank" style="display:inline-block; margin:0 8px; text-decoration:none;">
+                    <a href="{base}" target="_blank" style="display:inline-block; margin:0 8px; text-decoration:none;">
                       <img src="https://img.icons8.com/ios-filled/50/ffffff/domain.png" alt="Website" style="display:block; width:22px; height:22px;" />
                     </a>
                   </td>
@@ -238,9 +242,9 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
                 <!-- Unsubscribe links -->
                 <tr>
                   <td align="center">
-                    <a href="https://livecodetechnologies.com/contact" target="_blank" style="color:#ffffff; font-size:11px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em; padding:0 8px;">Contact Us</a>
+                    <a href="{base}/contact" target="_blank" style="color:#ffffff; font-size:11px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em; padding:0 8px;">Contact Us</a>
                     <span style="color:#F49220; font-size:11px;">|</span>
-                    <a href="https://livecodetechnologies.com/privacy-policy" target="_blank" style="color:#ffffff; font-size:11px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em; padding:0 8px;">Privacy Policy</a>
+                    <a href="{base}/privacy-policy" target="_blank" style="color:#ffffff; font-size:11px; font-weight:700; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em; padding:0 8px;">Privacy Policy</a>
                     <span style="color:#F49220; font-size:11px;">|</span>
                     <a href="{unsubscribe_url}" target="_blank" style="color:#F49220; font-size:11px; font-weight:800; text-decoration:underline; text-transform:uppercase; letter-spacing:0.05em; padding:0 8px;">Unsubscribe</a>
                   </td>
@@ -386,3 +390,11 @@ async def newsletter_worker(stop_event: asyncio.Event) -> None:
         except asyncio.TimeoutError:
             pass
     logger.info("Newsletter worker stopped.")
+
+async def trigger_newsletter_worker() -> None:
+    """Manually trigger the worker logic for immediate execution (e.g., via BackgroundTasks)."""
+    try:
+        await prepare_newsletter_deliveries()
+        await send_pending_deliveries(limit=50)
+    except Exception as exc:
+        logger.error("Manual newsletter trigger failed: %s", exc)
