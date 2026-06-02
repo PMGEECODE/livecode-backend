@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -71,5 +72,8 @@ class NewsletterSubscriberResponse(BaseModel):
     source: Optional[str] = None
     is_active: bool
     unsubscribe_token: str
+    welcome_email_sent: bool
+    last_digest_sent_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

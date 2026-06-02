@@ -167,3 +167,48 @@ async def delete_registration(
     await redis_manager.delete_pattern("dashboard:*")
     
     return {"message": "Registration deleted successfully"}
+
+
+@router.post(
+    "/bulk-delete",
+    response_model=Any,
+    summary="Bulk delete registrations",
+)
+async def bulk_delete_registrations(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(deps.get_current_active_superuser),
+) -> Any:
+    """
+    Delete multiple registrations at once.
+    Expected payload: {"registration_ids": ["uuid-1", "uuid-2"]}
+    """
+    reg_ids = payload.get("registration_ids", [])
+    if not reg_ids:
+        raise HTTPException(status_code=400, detail="No registration IDs provided")
+        
+    # Convert string IDs to UUID objects
+    try:
+        uuid_list = [uuid.UUID(str(r_id)) for r_id in reg_ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format in registration_ids")
+
+    # Fetch registrations to ensure they exist (optional, but good for validation)
+    result = await db.execute(
+        select(CourseRegistration).filter(CourseRegistration.id.in_(uuid_list))
+    )
+    registrations = result.scalars().all()
+    
+    if not registrations:
+        return {"message": "No valid registrations found to delete"}
+
+    for reg in registrations:
+        await db.delete(reg)
+        
+    await db.commit()
+    
+    # Invalidate dashboard cache
+    await redis_manager.delete_pattern("dashboard:*")
+    
+    return {"message": f"Successfully deleted {len(registrations)} registrations"}
+
