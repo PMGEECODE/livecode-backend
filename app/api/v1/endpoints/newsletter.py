@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.core.limiter import limiter
 from app.db.models.newsletter import NewsletterSubscriber
+from app.db.models.blog import BlogPost
+from app.db.models.course import Course
 from app.schemas.newsletter import NewsletterSubscribe, NewsletterSubscriberResponse
 from app.services.newsletter_worker import new_unsubscribe_token, queue_delivery, digest_email, trigger_newsletter_worker
 
@@ -87,11 +89,18 @@ async def dispatch_newsletter_manually(
 ) -> dict:
     """Manually dispatch the weekly digest newsletter to all active subscribers."""
     now = datetime.now(timezone.utc)
+    
+    # Fetch dynamic content for newsletter
+    blogs_result = await db.execute(select(BlogPost).order_by(BlogPost.published_date.desc()).limit(2))
+    blogs = blogs_result.scalars().all()
+    courses_result = await db.execute(select(Course).order_by(Course.slug.desc()).limit(2))
+    courses = courses_result.scalars().all()
+
     result = await db.execute(select(NewsletterSubscriber).where(NewsletterSubscriber.is_active == True))  # noqa: E712
     subscribers = result.scalars().all()
     count = 0
     for subscriber in subscribers:
-        subject, html_body = digest_email(subscriber)
+        subject, html_body = digest_email(subscriber, blogs, courses)
         await queue_delivery(db, subscriber, subject, html_body)
         subscriber.last_digest_sent_at = now
         count += 1

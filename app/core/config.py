@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     PROJECT_NAME: str = "Livecode Technologies API"
     PUBLIC_SITE_URL: str = "https://livecodetechnologies.com"
+    API_PUBLIC_URL: str = ""
 
     # Database
     DATABASE_URL: str

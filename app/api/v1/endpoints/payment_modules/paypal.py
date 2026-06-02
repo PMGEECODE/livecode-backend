@@ -15,6 +15,7 @@ from app.db.models.payment import PaymentTransaction
 from app.db.models.registration import CourseRegistration
 from app.schemas.payment import PaypalCaptureRequest, PaypalConfigResponse, PaypalCreateOrderRequest
 from app.services.paypal import paypal_service
+from app.services.payment_options import ensure_payment_provider_enabled
 from app.api.v1.endpoints.payment_modules.shared import calculate_registration_total
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,8 @@ async def paypal_create_order(
     Creates a PayPal order on behalf of the client.
     Verifies amount dynamically using backend database.
     """
+    await ensure_payment_provider_enabled(db, "paypal")
+
     # 1. Fetch course registration
     stmt = select(CourseRegistration).filter(CourseRegistration.id == payload.registration_id)
     result = await db.execute(stmt)

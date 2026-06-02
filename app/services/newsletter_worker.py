@@ -9,6 +9,8 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.email import send_email_async
 from app.db.models.newsletter import NewsletterDelivery, NewsletterSubscriber
+from app.db.models.blog import BlogPost
+from app.db.models.course import Course
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -19,15 +21,96 @@ def new_unsubscribe_token() -> str:
 
 
 def _unsubscribe_url(token: str) -> str:
-    base = settings.PUBLIC_SITE_URL.strip().rstrip("/")
-    return f"{base}/api/v1/newsletter/unsubscribe/{token}" if base else f"/api/v1/newsletter/unsubscribe/{token}"
+    api_base = settings.API_PUBLIC_URL.strip().rstrip("/") if settings.API_PUBLIC_URL else settings.PUBLIC_SITE_URL.strip().rstrip("/")
+    return f"{api_base}/api/v1/newsletter/unsubscribe/{token}" if api_base else f"/api/v1/newsletter/unsubscribe/{token}"
 
 
-def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: str, intro_text: str) -> str:
+def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: str, intro_text: str, blogs: list = None, courses: list = None) -> str:
     name = escape(subscriber.full_name)
     base = settings.PUBLIC_SITE_URL.strip().rstrip("/")
+    api_base = settings.API_PUBLIC_URL.strip().rstrip("/") if settings.API_PUBLIC_URL else base
     unsubscribe_url = _unsubscribe_url(subscriber.unsubscribe_token)
     
+    blogs_html = ""
+    if blogs:
+        blogs_html += """
+          <!-- Section 1: Livecode Highlights -->
+          <tr>
+            <td style="padding: 16px 32px; background-color: #ffffff;">
+              <h2 style="text-align:center; font-size:13px; font-weight:900; letter-spacing:0.2em; color:#001A4D; margin: 16px 0 24px 0; border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9; padding:12px 0; text-transform:uppercase;">Livecode Highlights</h2>"""
+        for blog in blogs:
+            content_snippet = (blog.content[:150] + "...") if blog.content else ""
+            img_html = ""
+            if blog.image_url:
+                img_src = f"{api_base}{blog.image_url}" if blog.image_url.startswith("/") else blog.image_url
+                img_html = f"""
+                <tr>
+                  <td style="padding-bottom:12px;">
+                    <a href="{base}/blog/{blog.slug}" target="_blank" style="display:block; text-decoration:none;">
+                      <img src="{img_src}" alt="{escape(blog.title)}" style="display:block; width:100%; max-width:600px; border-radius:8px; border:1px solid #e2e8f0; object-fit:cover; max-height:200px;" />
+                    </a>
+                  </td>
+                </tr>"""
+                
+            blogs_html += f"""
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:32px;">
+                {img_html}
+                <tr>
+                  <td>
+                    <h3 style="margin:0; font-size:16px; font-weight:800; line-height:1.4;">
+                      <a href="{base}/blog/{blog.slug}" target="_blank" style="color:#2563eb; text-decoration:none;">{escape(blog.title)}</a>
+                    </h3>
+                    <p style="margin:8px 0 12px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
+                      {escape(content_snippet)}
+                    </p>
+                    <a href="{base}/blog/{blog.slug}" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">Read the story</a>
+                  </td>
+                </tr>
+              </table>"""
+        blogs_html += """
+            </td>
+          </tr>"""
+
+    courses_html = ""
+    if courses:
+        courses_html += """
+          <!-- Section 2: Upcoming Training Courses -->
+          <tr>
+            <td style="padding: 16px 32px; background-color: #ffffff;">
+              <h2 style="text-align:center; font-size:13px; font-weight:900; letter-spacing:0.2em; color:#001A4D; margin: 16px 0 24px 0; border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9; padding:12px 0; text-transform:uppercase;">Featured Training Programs</h2>"""
+        for course in courses:
+            desc_snippet = (course.description[:150] + "...") if course.description else ""
+            img_html = ""
+            if course.image_url:
+                img_src = f"{api_base}{course.image_url}" if course.image_url.startswith("/") else course.image_url
+                img_html = f"""
+                <tr>
+                  <td style="padding-bottom:12px;">
+                    <a href="{base}/trainings/{course.category}/{course.slug}" target="_blank" style="display:block; text-decoration:none;">
+                      <img src="{img_src}" alt="{escape(course.title)}" style="display:block; width:100%; max-width:600px; border-radius:8px; border:1px solid #e2e8f0; object-fit:cover; max-height:200px;" />
+                    </a>
+                  </td>
+                </tr>"""
+
+            courses_html += f"""
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:32px;">
+                {img_html}
+                <tr>
+                  <td>
+                    <h3 style="margin:0; font-size:15px; font-weight:800; line-height:1.4;">
+                      <a href="{base}/trainings/{course.category}/{course.slug}" target="_blank" style="color:#2563eb; text-decoration:none;">{escape(course.title)}</a>
+                    </h3>
+                    <p style="margin:8px 0 12px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
+                      {escape(desc_snippet)}
+                    </p>
+                    <a href="{base}/trainings/{course.category}/{course.slug}" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">View course syllabus</a>
+                  </td>
+                </tr>
+              </table>"""
+        courses_html += """
+            </td>
+          </tr>"""
+
     return f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -89,79 +172,8 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
             </td>
           </tr>
 
-          <!-- Section 1: Livecode Highlights -->
-          <tr>
-            <td style="padding: 16px 32px; background-color: #ffffff;">
-              <h2 style="text-align:center; font-size:13px; font-weight:900; letter-spacing:0.2em; color:#001A4D; margin: 16px 0 24px 0; border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9; padding:12px 0; text-transform:uppercase;">Livecode Highlights</h2>
-              
-              <!-- Highlight Item 1 -->
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
-                <tr>
-                  <td>
-                    <h3 style="margin:0; font-size:16px; font-weight:800; line-height:1.4;">
-                      <a href="https://livecodetechnologies.com/services" target="_blank" style="color:#2563eb; text-decoration:none;">Accelerating Business Growth with Custom Software Solutions</a>
-                    </h3>
-                    <p style="margin:8px 0 12px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
-                      Discover how custom-tailored mobile applications and secure web ecosystems drive modern efficiency, streamline customer touchpoints, and eliminate operational bottlenecks in East Africa. Our dedicated product engineering teams build reliable, cloud-native systems scaled to your custom business requirements.
-                    </p>
-                    <a href="https://livecodetechnologies.com/services" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">Read the story</a>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Highlight Item 2 -->
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:16px;">
-                <tr>
-                  <td>
-                    <h3 style="margin:0; font-size:16px; font-weight:800; line-height:1.4;">
-                      <a href="https://livecodetechnologies.com/blog" target="_blank" style="color:#2563eb; text-decoration:none;">OpenTelemetry & Observability in Modern Enterprise APIs</a>
-                    </h3>
-                    <p style="margin:8px 0 12px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
-                      Implementing end-to-end distributed tracing, metrics, and structured logging is no longer optional for high-throughput enterprise applications. Learn how we configure robust telemetry pipelines on FastAPI backends to guarantee 99.9% uptime and immediate fault detection.
-                    </p>
-                    <a href="https://livecodetechnologies.com/blog" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">Read the article</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Section 2: Upcoming Training Courses -->
-          <tr>
-            <td style="padding: 16px 32px; background-color: #ffffff;">
-              <h2 style="text-align:center; font-size:13px; font-weight:900; letter-spacing:0.2em; color:#001A4D; margin: 16px 0 24px 0; border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9; padding:12px 0; text-transform:uppercase;">Featured Training Programs</h2>
-              
-              <!-- Course Item 1 -->
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
-                <tr>
-                  <td>
-                    <h3 style="margin:0; font-size:15px; font-weight:800; line-height:1.4;">
-                      <a href="https://livecodetechnologies.com/training-calendar" target="_blank" style="color:#2563eb; text-decoration:none;">Advanced Backend & API Engineering with FastAPI & PostgreSQL</a>
-                    </h3>
-                    <p style="margin:8px 0 12px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
-                      Master asynchronous database drivers (SQLAlchemy asyncpg), strict Pydantic v2 data sanitization and input validation, JWT-based security protocols, background workers, and containerized deployment with Docker and Kubernetes.
-                    </p>
-                    <a href="https://livecodetechnologies.com/training-calendar" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">View course syllabus</a>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Course Item 2 -->
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:16px;">
-                <tr>
-                  <td>
-                    <h3 style="margin:0; font-size:15px; font-weight:800; line-height:1.4;">
-                      <a href="https://livecodetechnologies.com/training-calendar" target="_blank" style="color:#2563eb; text-decoration:none;">Cross-Platform Mobile App Engineering with Flutter & Supabase</a>
-                    </h3>
-                    <p style="margin:8px 0 12px 0; font-size:13px; color:#475569; line-height:1.6; font-weight:500;">
-                      Build rich, high-performance mobile architectures using clean widget separation, reactive state managers (Riverpod/Bloc), secure OAuth deep linking, and real-time backend synchronization.
-                    </p>
-                    <a href="https://livecodetechnologies.com/training-calendar" target="_blank" style="font-size:12px; font-weight:700; color:#d97706; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em;">View course syllabus</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          {blogs_html}
+          {courses_html}
 
           <!-- Section 3: Technical Services -->
           <tr>
@@ -262,19 +274,19 @@ def render_newsletter_template(subscriber: NewsletterSubscriber, title_month: st
 </html>"""
 
 
-def welcome_email(subscriber: NewsletterSubscriber) -> tuple[str, str]:
+def welcome_email(subscriber: NewsletterSubscriber, blogs: list = None, courses: list = None) -> tuple[str, str]:
     title_month = datetime.now().strftime("%B %Y").upper()
     intro_text = "Thank you for subscribing to Livecode Technologies. We are thrilled to welcome you to our professional network. As a subscriber, you'll receive weekly updates containing upcoming masterclass training calendars, industry-standard technology blogs, and professional system design insights directly in your inbox."
     
-    html_body = render_newsletter_template(subscriber, title_month, intro_text)
+    html_body = render_newsletter_template(subscriber, title_month, intro_text, blogs=blogs, courses=courses)
     return ("Welcome to Livecode Technologies updates", html_body)
 
 
-def digest_email(subscriber: NewsletterSubscriber) -> tuple[str, str]:
+def digest_email(subscriber: NewsletterSubscriber, blogs: list = None, courses: list = None) -> tuple[str, str]:
     title_month = datetime.now().strftime("%B %Y").upper()
     intro_text = "We hope you are having an excellent week. Here is your curated weekly digest from Livecode Technologies, featuring our latest technical publications, trending courses, and managed solutions designed to keep you at the absolute forefront of the technology ecosystem."
     
-    html_body = render_newsletter_template(subscriber, title_month, intro_text)
+    html_body = render_newsletter_template(subscriber, title_month, intro_text, blogs=blogs, courses=courses)
     return ("Livecode Technologies weekly training update", html_body)
 
 
@@ -292,14 +304,26 @@ async def prepare_newsletter_deliveries() -> None:
     digest_cutoff = now - timedelta(days=max(1, settings.NEWSLETTER_DIGEST_INTERVAL_DAYS))
 
     async with SessionLocal() as db:
+        # Fetch dynamic content once for the loop
+        blogs_result = await db.execute(select(BlogPost).order_by(BlogPost.published_date.desc()).limit(2))
+        blogs = blogs_result.scalars().all()
+        
+        # We'll use order_by(Course.title) just as a placeholder since func.random() might not be supported universally, 
+        # or we can just fetch the latest inserted courses. Let's fetch the first 2.
+        courses_result = await db.execute(select(Course).order_by(Course.slug.desc()).limit(2))
+        courses = courses_result.scalars().all()
+
         result = await db.execute(select(NewsletterSubscriber).where(NewsletterSubscriber.is_active == True))  # noqa: E712
         subscribers = result.scalars().all()
         for subscriber in subscribers:
             if not subscriber.welcome_email_sent:
                 # 1. Send welcome newsletter to the subscriber
-                subject, html_body = welcome_email(subscriber)
+                subject, html_body = welcome_email(subscriber, blogs, courses)
                 await queue_delivery(db, subscriber, subject, html_body)
                 subscriber.welcome_email_sent = True
+                
+                # Assume digest isn't needed right after welcome, set the timer
+                subscriber.last_digest_sent_at = now
                 
                 # 2. Send notification ONLY ONCE to the company email target
                 company_email_target = (settings.COMPANY_NOTIFICATION_EMAIL or "").strip() or settings.EMAILS_FROM_EMAIL.strip()
@@ -347,7 +371,7 @@ async def prepare_newsletter_deliveries() -> None:
                         status="pending",
                     ))
             elif subscriber.last_digest_sent_at is None or subscriber.last_digest_sent_at <= digest_cutoff:
-                subject, html_body = digest_email(subscriber)
+                subject, html_body = digest_email(subscriber, blogs, courses)
                 await queue_delivery(db, subscriber, subject, html_body)
                 subscriber.last_digest_sent_at = now
         await db.commit()

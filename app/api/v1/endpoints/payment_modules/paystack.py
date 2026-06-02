@@ -19,6 +19,7 @@ from app.db.models.payment import PaymentTransaction
 from app.db.models.registration import CourseRegistration
 from app.schemas.payment import PaystackInitializeRequest, PaystackInitializeResponse, PaystackStatusResponse
 from app.services.paystack import paystack_service
+from app.services.payment_options import ensure_payment_provider_enabled
 from app.api.v1.endpoints.payment_modules.shared import (
     build_course_email_payload,
     build_registration_email_payload,
@@ -155,6 +156,7 @@ async def paystack_initialize(
     payload: PaystackInitializeRequest,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
+    await ensure_payment_provider_enabled(db, "paystack")
     registration, course = await get_registration_course_for_payment(db, payload.registration_id)
 
     if registration.status == "confirmed":

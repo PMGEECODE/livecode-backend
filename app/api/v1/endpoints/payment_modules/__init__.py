@@ -1,8 +1,9 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints.payment_modules import mpesa, paypal, paystack, stripe
+from app.api.v1.endpoints.payment_modules import mpesa, options, paypal, paystack, stripe
 
 router = APIRouter()
+router.include_router(options.router)
 router.include_router(mpesa.router)
 router.include_router(stripe.router)
 router.include_router(paystack.router)

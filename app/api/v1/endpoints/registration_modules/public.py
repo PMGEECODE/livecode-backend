@@ -10,6 +10,7 @@ from app.crud.course import course as crud_course
 from app.crud.registration import create_registration
 from app.schemas.registration import RegistrationCreate, RegistrationResponse
 from app.api.v1.endpoints.registration_modules.emails import process_registration_email
+from app.services.payment_options import ensure_payment_provider_enabled, normalize_payment_provider
 
 router = APIRouter()
 
@@ -36,6 +37,10 @@ async def submit_registration(
     - Generates attachments and sends an email in the background.
     - Returns the created registration record.
     """
+    provider = normalize_payment_provider(payload.payment_method)
+    if provider == "offline":
+        await ensure_payment_provider_enabled(db, provider)
+
     # Validate that the course actually exists before attempting insertion
     course_dict = None
     if payload.course_id:

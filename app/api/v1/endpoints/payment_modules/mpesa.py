@@ -15,6 +15,7 @@ from app.db.models.payment import PaymentTransaction
 from app.db.models.registration import CourseRegistration
 from app.schemas.payment import MpesaStkPushRequest, MpesaStkPushResponse, MpesaStatusResponse
 from app.services.mpesa import mpesa_service
+from app.services.payment_options import ensure_payment_provider_enabled
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -38,6 +39,8 @@ async def initiate_stk_push(
     - Requests the STK Push via Safaricom API.
     - Saves the pending transaction.
     """
+    await ensure_payment_provider_enabled(db, "mpesa")
+
     # 1. Fetch course registration
     stmt = select(CourseRegistration).filter(CourseRegistration.id == payload.registration_id)
     result = await db.execute(stmt)

@@ -89,3 +89,27 @@ class PaystackStatusResponse(BaseModel):
     currency: str
     receipt_number: Optional[str] = None
     message: Optional[str] = None
+
+
+class PaymentOptionResponse(BaseModel):
+    provider: str
+    label: str
+    is_enabled: bool
+    disabled_message: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class PaymentOptionUpdate(BaseModel):
+    is_enabled: bool
+    disabled_message: Optional[str] = Field(None, max_length=500)
+
+    model_config = {
+        "extra": "forbid"
+    }
+
+
+class PaymentOptionsResponse(BaseModel):
+    options: list[PaymentOptionResponse]

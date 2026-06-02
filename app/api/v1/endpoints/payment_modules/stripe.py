@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.models.payment import PaymentTransaction
 from app.db.models.registration import CourseRegistration
 from app.schemas.payment import StripeChargeRequest
+from app.services.payment_options import ensure_payment_provider_enabled
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -33,6 +34,8 @@ async def stripe_charge(
     """
     Process a Stripe card charge.
     """
+    await ensure_payment_provider_enabled(db, "stripe")
+
     if not settings.STRIPE_SECRET_KEY:
         raise HTTPException(status_code=500, detail="Stripe integration is not configured on the server.")
 
