@@ -1,7 +1,12 @@
-from typing import Optional, List
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Optional, List, Any
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 import re
 
+def sanitize_html(value: str) -> str:
+    if not isinstance(value, str):
+        return value
+    # Simple regex to strip HTML tags
+    return re.sub(r'<[^>]*>', '', value).strip()
 
 class GroupMember(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
@@ -10,6 +15,14 @@ class GroupMember(BaseModel):
     phone: Optional[str] = Field(None, max_length=30)
     title: Optional[str] = Field(None, max_length=20)
 
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_inputs(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if isinstance(v, str):
+                    data[k] = sanitize_html(v)
+        return data
 
 class RegistrationCreate(BaseModel):
     # Course context
@@ -49,6 +62,15 @@ class RegistrationCreate(BaseModel):
 
     # Controlling email dispatch on submission (default to "Offline" for backward compatibility)
     payment_method: Optional[str] = Field("Offline", max_length=50)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_inputs(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if isinstance(v, str):
+                    data[k] = sanitize_html(v)
+        return data
 
     @field_validator("phone", mode="before")
     @classmethod
