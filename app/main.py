@@ -25,6 +25,7 @@ from app.core.upload_security import upload_root
 from app.core.redis import redis_manager
 from app.db.session import engine
 from app.services.newsletter_worker import newsletter_worker
+from app.services.registration_cleanup_worker import registration_cleanup_worker
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -84,6 +85,10 @@ async def lifespan(app: FastAPI):
     await redis_manager.init()
     newsletter_stop_event: asyncio.Event | None = None
     newsletter_task: asyncio.Task | None = None
+    
+    registration_cleanup_stop_event = asyncio.Event()
+    registration_cleanup_task = asyncio.create_task(registration_cleanup_worker(registration_cleanup_stop_event))
+
     if settings.NEWSLETTER_WORKER_ENABLED:
         newsletter_stop_event = asyncio.Event()
         newsletter_task = asyncio.create_task(newsletter_worker(newsletter_stop_event))
@@ -95,6 +100,13 @@ async def lifespan(app: FastAPI):
             await asyncio.wait_for(newsletter_task, timeout=10)
         except asyncio.TimeoutError:
             newsletter_task.cancel()
+            
+    registration_cleanup_stop_event.set()
+    try:
+        await asyncio.wait_for(registration_cleanup_task, timeout=10)
+    except asyncio.TimeoutError:
+        registration_cleanup_task.cancel()
+
     await redis_manager.close()
 
 app = FastAPI(

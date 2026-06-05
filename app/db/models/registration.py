@@ -1,6 +1,7 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.sql import func
 from app.db.base_class import Base
 
 
@@ -47,6 +48,7 @@ class CourseRegistration(Base):
 
     # Status — indexed because it is used in WHERE filters (pending count queries, dashboard, etc.)
     status = Column(String, nullable=False, default="pending", index=True)  # pending | confirmed | cancelled
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __init__(
         self,
