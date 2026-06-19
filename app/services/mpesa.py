@@ -10,17 +10,23 @@ logger = logging.getLogger(__name__)
 class MpesaService:
     def __init__(self):
         self.env = settings.MPESA_ENVIRONMENT.lower()
-        self.consumer_key = settings.MPESA_CONSUMER_KEY
-        self.consumer_secret = settings.MPESA_CONSUMER_SECRET
-        self.shortcode = settings.MPESA_SHORTCODE
-        self.passkey = settings.MPESA_PASSKEY
-        self.callback_url = settings.MPESA_CALLBACK_URL
 
-        # Base URLs for Sandbox / Production
-        if self.env == "production":
+        # Dynamically load configuration keys based on MPESA_ENVIRONMENT setting.
+        # Fallback to general settings if environment-specific variables are not defined.
+        if self.env in ("live", "production"):
             self.base_url = "https://api.safaricom.co.ke"
+            self.consumer_key = settings.LIVE_MPESA_CONSUMER_KEY or settings.MPESA_CONSUMER_KEY
+            self.consumer_secret = settings.LIVE_MPESA_CONSUMER_SECRET or settings.MPESA_CONSUMER_SECRET
+            self.shortcode = settings.LIVE_MPESA_SHORTCODE or settings.MPESA_SHORTCODE
+            self.passkey = settings.LIVE_MPESA_PASSKEY or settings.MPESA_PASSKEY
+            self.callback_url = settings.LIVE_MPESA_CALLBACK_URL or settings.MPESA_CALLBACK_URL
         else:
             self.base_url = "https://sandbox.safaricom.co.ke"
+            self.consumer_key = settings.SANDBOX_MPESA_CONSUMER_KEY or settings.MPESA_CONSUMER_KEY
+            self.consumer_secret = settings.SANDBOX_MPESA_CONSUMER_SECRET or settings.MPESA_CONSUMER_SECRET
+            self.shortcode = settings.SANDBOX_MPESA_SHORTCODE or settings.MPESA_SHORTCODE
+            self.passkey = settings.SANDBOX_MPESA_PASSKEY or settings.MPESA_PASSKEY
+            self.callback_url = settings.SANDBOX_MPESA_CALLBACK_URL or settings.MPESA_CALLBACK_URL
 
     def format_phone(self, phone: str) -> str:
         """Format phone number to Safaricom standard (2547XXXXXXXX or 2541XXXXXXXX)."""

@@ -57,6 +57,64 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
 
 # ─── A) SERVICE-LAYER UNIT TESTS ───
 @pytest.mark.asyncio
+async def test_mpesa_service_environment_switching():
+    """Verify that MpesaService dynamically switches credentials and URLs based on MPESA_ENVIRONMENT."""
+    from app.services.mpesa import MpesaService
+    from app.core.config import settings
+
+    # Test Sandbox Environment
+    with patch.object(settings, "MPESA_ENVIRONMENT", "sandbox"), \
+         patch.object(settings, "SANDBOX_MPESA_CONSUMER_KEY", "sandbox_key"), \
+         patch.object(settings, "SANDBOX_MPESA_CONSUMER_SECRET", "sandbox_secret"), \
+         patch.object(settings, "SANDBOX_MPESA_SHORTCODE", "123456"), \
+         patch.object(settings, "SANDBOX_MPESA_PASSKEY", "sandbox_passkey"), \
+         patch.object(settings, "SANDBOX_MPESA_CALLBACK_URL", "https://sandbox.callback"):
+        
+        service = MpesaService()
+        assert service.env == "sandbox"
+        assert service.base_url == "https://sandbox.safaricom.co.ke"
+        assert service.consumer_key == "sandbox_key"
+        assert service.consumer_secret == "sandbox_secret"
+        assert service.shortcode == "123456"
+        assert service.passkey == "sandbox_passkey"
+        assert service.callback_url == "https://sandbox.callback"
+
+    # Test Production (Live) Environment
+    with patch.object(settings, "MPESA_ENVIRONMENT", "production"), \
+         patch.object(settings, "LIVE_MPESA_CONSUMER_KEY", "live_key"), \
+         patch.object(settings, "LIVE_MPESA_CONSUMER_SECRET", "live_secret"), \
+         patch.object(settings, "LIVE_MPESA_SHORTCODE", "654321"), \
+         patch.object(settings, "LIVE_MPESA_PASSKEY", "live_passkey"), \
+         patch.object(settings, "LIVE_MPESA_CALLBACK_URL", "https://live.callback"):
+        
+        service = MpesaService()
+        assert service.env == "production"
+        assert service.base_url == "https://api.safaricom.co.ke"
+        assert service.consumer_key == "live_key"
+        assert service.consumer_secret == "live_secret"
+        assert service.shortcode == "654321"
+        assert service.passkey == "live_passkey"
+        assert service.callback_url == "https://live.callback"
+
+    # Test Live Environment alias
+    with patch.object(settings, "MPESA_ENVIRONMENT", "live"), \
+         patch.object(settings, "LIVE_MPESA_CONSUMER_KEY", "live_key_alias"), \
+         patch.object(settings, "LIVE_MPESA_CONSUMER_SECRET", "live_secret_alias"), \
+         patch.object(settings, "LIVE_MPESA_SHORTCODE", "654321_alias"), \
+         patch.object(settings, "LIVE_MPESA_PASSKEY", "live_passkey_alias"), \
+         patch.object(settings, "LIVE_MPESA_CALLBACK_URL", "https://live.callback_alias"):
+        
+        service = MpesaService()
+        assert service.env == "live"
+        assert service.base_url == "https://api.safaricom.co.ke"
+        assert service.consumer_key == "live_key_alias"
+        assert service.consumer_secret == "live_secret_alias"
+        assert service.shortcode == "654321_alias"
+        assert service.passkey == "live_passkey_alias"
+        assert service.callback_url == "https://live.callback_alias"
+
+
+@pytest.mark.asyncio
 async def test_mpesa_service_phone_formatting():
     """Verify phone formatting logic converts numbers correctly."""
     assert mpesa_service.format_phone("0712345678") == "254712345678"

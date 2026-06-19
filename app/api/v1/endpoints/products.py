@@ -1,0 +1,133 @@
+import uuid
+from typing import Any, List
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from app.api import deps
+from app.db.models.product import Product
+from app.schemas.product import ProductCreate, ProductUpdate, Product as ProductSchema
+from app.services.s3_storage import upload_public_object, _clean_key_part
+from app.core.upload_security import read_upload_file_limited, validate_image_upload
+from app.core.config import settings
+
+router = APIRouter()
+
+@router.get("/", response_model=List[ProductSchema])
+async def read_products(
+    db: AsyncSession = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
+) -> Any:
+    """Retrieve products."""
+    result = await db.execute(select(Product).offset(skip).limit(limit))
+    products = result.scalars().all()
+    return products
+
+@router.get("/{id}", response_model=ProductSchema)
+async def read_product(
+    id: uuid.UUID,
+    db: AsyncSession = Depends(deps.get_db),
+) -> Any:
+    """Get product by ID."""
+    result = await db.execute(select(Product).where(Product.id == id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+@router.post("/", response_model=ProductSchema)
+async def create_product(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    product_in: ProductCreate,
+    current_user = Depends(deps.get_current_active_admin),
+) -> Any:
+    """Create new product."""
+    # Check if slug exists
+    result = await db.execute(select(Product).where(Product.slug == product_in.slug))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Product with this slug already exists.")
+    
+    product = Product(**product_in.model_dump())
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return product
+
+@router.put("/{id}", response_model=ProductSchema)
+async def update_product(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: uuid.UUID,
+    product_in: ProductUpdate,
+    current_user = Depends(deps.get_current_active_admin),
+) -> Any:
+    """Update a product."""
+    result = await db.execute(select(Product).where(Product.id == id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    update_data = product_in.model_dump(exclude_unset=True)
+    
+    # Check slug conflict if updating slug
+    if "slug" in update_data and update_data["slug"] != product.slug:
+        slug_check = await db.execute(select(Product).where(Product.slug == update_data["slug"]))
+        if slug_check.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Product with this slug already exists.")
+            
+    for field, value in update_data.items():
+        setattr(product, field, value)
+        
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return product
+
+@router.delete("/{id}", response_model=dict)
+async def delete_product(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: uuid.UUID,
+    current_user = Depends(deps.get_current_active_admin),
+) -> Any:
+    """Delete a product."""
+    result = await db.execute(select(Product).where(Product.id == id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    await db.delete(product)
+    await db.commit()
+    return {"detail": "Product deleted successfully"}
+
+@router.post("/upload-image", response_model=dict)
+async def upload_product_image(
+    file: UploadFile = File(...),
+    current_user = Depends(deps.get_current_active_admin),
+) -> Any:
+    """
+    Upload a product image to S3.
+    Returns the public URL of the uploaded image.
+    """
+    # Read and validate image
+    data = await read_upload_file_limited(file, settings.IMAGE_UPLOAD_MAX_BYTES)
+    ext = validate_image_upload(file, data)
+    
+    import os
+    import time
+    
+    safe_name = _clean_key_part(os.path.splitext(file.filename)[0][:50])
+    filename = f"{safe_name}_{int(time.time())}.{ext}"
+    
+    s3_key = f"products/{filename}"
+    
+    public_url = upload_public_object(
+        key=s3_key,
+        data=data,
+        content_type=file.content_type or "image/jpeg",
+        original_filename=file.filename
+    )
+    
+    return {"url": public_url}

@@ -85,6 +85,41 @@ def upload_private_object(*, key: str, data: bytes, content_type: str, original_
         )
 
 
+def upload_public_object(*, key: str, data: bytes, content_type: str, original_filename: Optional[str] = None) -> str:
+    """Uploads an object and returns the public URL (assuming the bucket is public or public-read)."""
+    metadata = {}
+    if original_filename:
+        metadata["original-filename"] = os.path.basename(original_filename)[:200]
+
+    try:
+        _client().put_object(
+            Bucket=settings.S3_BUCKET,
+            Key=key,
+            Body=data,
+            ContentType=content_type,
+            Metadata=metadata,
+            # ACL="public-read"  # Some providers block ACLs, so omitting it relying on bucket policy
+        )
+        # Construct public URL based on endpoint. Supabase: /storage/v1/s3 -> /storage/v1/object/public/
+        if "supabase.co" in settings.S3_ENDPOINT:
+            base_url = settings.S3_ENDPOINT.replace("/s3", "/object/public/")
+            if not base_url.endswith("/"):
+                base_url += "/"
+            return f"{base_url}{settings.S3_BUCKET}/{key}"
+        
+        # Generic S3 public URL fallback
+        # e.g., https://bucket-name.s3.region.amazonaws.com/key
+        endpoint = settings.S3_ENDPOINT.replace("https://", "").replace("http://", "")
+        scheme = "https://" if "https://" in settings.S3_ENDPOINT else "http://"
+        return f"{scheme}{settings.S3_BUCKET}.{endpoint}/{key}"
+    except (ClientError, BotoCoreError) as e:
+        print(f"S3 Upload Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Public document storage is not available. Please try again.",
+        )
+
+
 def object_exists(key: str) -> bool:
     try:
         _client().head_object(Bucket=settings.S3_BUCKET, Key=key)

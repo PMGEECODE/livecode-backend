@@ -17,6 +17,9 @@ async def get_db() -> AsyncGenerator:
     async with SessionLocal() as db:
         yield db
 
+import uuid
+from datetime import datetime, timezone
+
 async def get_current_user(
     db: AsyncSession = Depends(get_db), token: str = Depends(reusable_oauth2)
 ) -> models.User:
@@ -31,9 +34,47 @@ async def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = await crud.user.get(db, id=token_data.sub)
+    
+    if not token_data.sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing subject",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    try:
+        user_id = uuid.UUID(token_data.sub)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: invalid subject UUID format",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    user = await crud.user.get(db, id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Active session verification
+    if not token_data.sid or user.active_session_id != token_data.sid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has expired or was terminated from another device",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    if user.session_expires_at:
+        now = datetime.now(timezone.utc)
+        expires = user.session_expires_at
+        if expires.tzinfo is None:
+            now = datetime.utcnow()
+        if now > expires:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
     return user
 
 def get_current_active_user(
@@ -51,3 +92,20 @@ def get_current_active_superuser(
             status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
         )
     return current_user
+
+def get_current_active_admin(
+    current_user: models.User = Depends(get_current_active_user),
+) -> models.User:
+    """Require an active administrator account.
+
+    Some admin-facing endpoints use the semantic name `admin`, while older
+    endpoints use `superuser`. Keep both dependencies available and enforce
+    the same fail-closed privilege check at the backend.
+    """
+    role = (getattr(current_user, "role", None) or "").strip().lower()
+    if current_user.is_superuser or role == "admin":
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="The user doesn't have enough privileges",
+    )

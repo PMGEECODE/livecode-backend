@@ -39,6 +39,20 @@ class Settings(BaseSettings):
     MPESA_CONSUMER_SECRET: str = ""
     MPESA_CALLBACK_URL: str = ""
 
+    SANDBOX_MPESA_ENVIRONMENT: str = "sandbox"
+    SANDBOX_MPESA_SHORTCODE: str = ""
+    SANDBOX_MPESA_PASSKEY: str = ""
+    SANDBOX_MPESA_CONSUMER_KEY: str = ""
+    SANDBOX_MPESA_CONSUMER_SECRET: str = ""
+    SANDBOX_MPESA_CALLBACK_URL: str = ""
+
+    LIVE_MPESA_ENVIRONMENT: str = "live"
+    LIVE_MPESA_SHORTCODE: str = ""
+    LIVE_MPESA_PASSKEY: str = ""
+    LIVE_MPESA_CONSUMER_KEY: str = ""
+    LIVE_MPESA_CONSUMER_SECRET: str = ""
+    LIVE_MPESA_CALLBACK_URL: str = ""
+
     STRIPE_PUBLIC_KEY: str | None = None
     STRIPE_SECRET_KEY: str | None = None
 

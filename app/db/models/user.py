@@ -30,6 +30,9 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True)
     last_login = Column(DateTime(timezone=True), nullable=True)
 
+    active_session_id = Column(String, nullable=True)
+    session_expires_at = Column(DateTime(timezone=True), nullable=True)
+
     def __init__(
         self,
         *,
@@ -51,6 +54,8 @@ class User(Base):
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
         last_login: datetime | None = None,
+        active_session_id: str | None = None,
+        session_expires_at: datetime | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -70,6 +75,8 @@ class User(Base):
         self.bio = bio
         self.avatar_url = avatar_url
         self.is_verified = is_verified
+        self.active_session_id = active_session_id
+        self.session_expires_at = session_expires_at
         if created_at is not None:
             self.created_at = created_at
         if updated_at is not None:
