@@ -39,3 +39,27 @@ ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned 
 ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
 ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
 ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned registrations: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned registrations: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned registrations: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused

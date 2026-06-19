@@ -33,19 +33,18 @@ async def login_access_token(
             detail="Inactive user"
         )
     
-    # Enforce exactly one concurrent active session
-    if user.active_session_id and user.session_expires_at:
-        now = datetime.now(timezone.utc)
-        expires = user.session_expires_at
-        if expires.tzinfo is None:
-            now = datetime.utcnow()
-        if now <= expires:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="An active session already exists for this account. Only one concurrent session is permitted. Please log out from the other session first."
-            )
-            
     new_session_id = str(uuid.uuid4())
+    
+    # Broadcast session invalidation to notify any other active devices
+    from app.core.sse import sse_manager
+    await sse_manager.broadcast(
+        "session_invalidated",
+        {
+            "user_id": str(user.id),
+            "active_session_id": new_session_id
+        }
+    )
+    
     user.active_session_id = new_session_id
     user.session_expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
