@@ -10,7 +10,7 @@ from app.db.base import Base
 from app.db.models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_db.sqlite"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./tests/test_db.sqlite"
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(

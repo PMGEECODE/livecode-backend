@@ -1,0 +1,40 @@
+INFO:     Started server process [18]
+INFO:     Waiting for application startup.
+INFO:app.main:🔍 Checking database connection: postgresql+asyncpg://****:****@localhost/livecode_db
+INFO:app.main:✅ Database connection established successfully.
+INFO:alembic.runtime.migration:Context impl PostgresqlImpl.
+INFO:alembic.runtime.migration:Will assume transactional DDL.
+WARNING:app.main:⚠️  Database migrations are OUT OF SYNC! (Current: None, Head: a1e5282209f2)
+INFO:app.core.redis:🔌 Initializing Async Redis client connection pool...
+INFO:app.core.redis:✅ Redis connection established successfully.
+INFO:app.services.registration_cleanup_worker:Registration cleanup worker started. Will run every 30 minutes.
+INFO:app.services.newsletter_worker:Newsletter worker started.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned registrations: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned registrations: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned registrations: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.registration_cleanup_worker:❌ Failed to clean up abandoned registrations: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused
+ERROR:app.services.newsletter_worker:Newsletter worker cycle failed: [Errno 111] Connection refused

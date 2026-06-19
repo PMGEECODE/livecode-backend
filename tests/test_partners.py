@@ -14,7 +14,7 @@ from app.db.models.user import User
 from app.db.models.partner import TrustedPartner
 
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_partners_db.sqlite"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./tests/test_partners_db.sqlite"
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(
@@ -231,6 +231,7 @@ async def test_upload_partner_logo_webp_conversion(async_client: AsyncClient):
     import io
     import os
     from PIL import Image
+    from app.core.upload_security import upload_root
 
     img = Image.new("RGB", (10, 10), color="blue")
     img_byte_arr = io.BytesIO()
@@ -246,8 +247,8 @@ async def test_upload_partner_logo_webp_conversion(async_client: AsyncClient):
     assert data["url"].endswith(".webp")
 
     # Verify the physical file exists and clean it up
-    relative = data["url"].split("/media/")[-1]
-    file_path = os.path.join("static", relative)
+    relative = data["url"].split("/media/uploads/")[-1]
+    file_path = os.path.join(upload_root(), relative)
     assert os.path.isfile(file_path)
     os.remove(file_path)
 

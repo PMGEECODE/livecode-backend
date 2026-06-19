@@ -18,7 +18,7 @@ from app.services.mpesa import mpesa_service
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_payments_db.sqlite"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./tests/test_payments_db.sqlite"
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(

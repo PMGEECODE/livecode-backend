@@ -1,16 +1,8 @@
-"""
-Tests for the Trainer Applications endpoints.
-Covers:
-  - Document upload (valid + invalid types, size limit enforcement)
-  - Application submission (happy path, validation errors, missing CV)
-  - Admin listing (requires superuser)
-  - Admin status update (valid + invalid transitions)
-  - Authorization checks on admin-only endpoints
-"""
 import io
 import os
 import uuid
 from typing import AsyncGenerator
+from unittest.mock import patch, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -21,11 +13,12 @@ from app.main import app
 from app.api.deps import get_db, get_current_active_superuser
 from app.db.base import Base
 from app.db.models.user import User
+from app.services.s3_storage import StoredObject
 
 # ──────────────────────────────────────────────────────────────
 # Test DB setup
 # ──────────────────────────────────────────────────────────────
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_trainers_db.sqlite"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./tests/test_trainers_db.sqlite"
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(
@@ -59,10 +52,46 @@ async def mock_superuser():
     )  # type: ignore
 
 
+from app.core.config import settings
+from app.core.upload_security import upload_root
+
+_MOCK_S3 = {}
+
+@pytest_asyncio.fixture(autouse=True)
+def mock_s3_and_malware():
+    _MOCK_S3.clear()
+    
+    def mock_upload_private_object(*, key, data, content_type, original_filename=None):
+        _MOCK_S3[key] = StoredObject(
+            key=key,
+            content=data,
+            content_type=content_type,
+            content_length=len(data)
+        )
+        
+    def mock_object_exists(key):
+        return key in _MOCK_S3
+        
+    def mock_download_private_object(key):
+        if key not in _MOCK_S3:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Document was not found in secure storage.")
+        return _MOCK_S3[key]
+
+    with patch("app.api.v1.endpoints.trainers.upload_private_object", side_effect=mock_upload_private_object), \
+         patch("app.api.v1.endpoints.trainers.object_exists", side_effect=mock_object_exists), \
+         patch("app.api.v1.endpoints.trainers.download_private_object", side_effect=mock_download_private_object), \
+         patch("app.api.v1.endpoints.trainers.scan_bytes_for_malware", return_value=None):
+        yield
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def setup_dependency_overrides():
     app.dependency_overrides[get_db] = override_get_db
+    original_scanner_setting = settings.REQUIRE_MALWARE_SCANNER
+    settings.REQUIRE_MALWARE_SCANNER = False
     yield
+    settings.REQUIRE_MALWARE_SCANNER = original_scanner_setting
     if get_db in app.dependency_overrides:
         del app.dependency_overrides[get_db]
     if get_current_active_superuser in app.dependency_overrides:
@@ -144,11 +173,14 @@ def _valid_payload(cv_filename: str) -> dict:
 @pytest.mark.asyncio
 async def test_submit_valid_application():
     """A complete, valid application with an uploaded CV should succeed."""
-    # Ensure there is a dummy file created in upload directory for validation
-    os.makedirs("static/uploads/trainers", exist_ok=True)
-    filename = f"{uuid.uuid4()}-cv.pdf"
-    with open(f"static/uploads/trainers/{filename}", "wb") as f:
-        f.write(b"%PDF-1.4 fake data")
+    filename = f"{uuid.uuid4()}.pdf"
+    key = f"trainers/{filename}"
+    _MOCK_S3[key] = StoredObject(
+        key=key,
+        content=b"%PDF-1.4 fake data",
+        content_type="application/pdf",
+        content_length=18
+    )
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -158,10 +190,6 @@ async def test_submit_valid_application():
     assert data["full_name"] == "Grace Wanjiru"
     assert data["status"] == "pending"
     assert "id" in data
-
-    # Clean up file
-    if os.path.exists(f"static/uploads/trainers/{filename}"):
-        os.remove(f"static/uploads/trainers/{filename}")
 
 
 @pytest.mark.asyncio

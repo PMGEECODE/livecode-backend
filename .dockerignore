@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Databases & logs
+*.sqlite
+*.log
+
+# Docker/Compose
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# OS files
+.DS_Store

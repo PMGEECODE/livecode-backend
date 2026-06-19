@@ -20,16 +20,18 @@ from app.main import app
 
 # ── Test fixtures ─────────────────────────────────────────────────────────────
 
+from app.core.upload_security import upload_root
+
 _TEST_SLUG = "test-media-course"
 _TEST_UUID = str(uuid.uuid4())
 _TEST_FILE = f"{_TEST_UUID}.png"
-_UPLOAD_DIR = os.path.join("static", "uploads", _TEST_SLUG)
+_UPLOAD_DIR = os.path.join(upload_root(), _TEST_SLUG)
 _TEST_FILE_PATH = os.path.join(_UPLOAD_DIR, _TEST_FILE)
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_test_file():
-    """Create a real file in static/uploads so the endpoint can serve it."""
+    """Create a real file in upload_root so the endpoint can serve it."""
     os.makedirs(_UPLOAD_DIR, exist_ok=True)
     with open(_TEST_FILE_PATH, "wb") as f:
         f.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)  # minimal PNG header bytes

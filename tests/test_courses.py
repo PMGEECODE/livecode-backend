@@ -14,7 +14,7 @@ from app.db.models.user import User
 from app.db.models.course import Course
 
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_courses_db.sqlite"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./tests/test_courses_db.sqlite"
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(

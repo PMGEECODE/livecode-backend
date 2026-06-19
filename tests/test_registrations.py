@@ -19,7 +19,7 @@ from app.db.models.blog import BlogPost
 
 
 # Isolated async sqlite database file for deterministic, parallel-safe testing
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_db.sqlite"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./tests/test_db.sqlite"
 
 engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestingSessionLocal = async_sessionmaker(
