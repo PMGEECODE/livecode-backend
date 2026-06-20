@@ -14,6 +14,7 @@ from app.api.deps import get_db
 from app.api.v1.endpoints.registration import process_registration_email
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.redis import redis_manager
 from app.db.models.course import Course
 from app.db.models.payment import PaymentTransaction
 from app.db.models.registration import CourseRegistration
@@ -131,6 +132,8 @@ async def finalize_paystack_payment(
     db.add(transaction)
 
     await db.commit()
+    await redis_manager.delete_pattern("dashboard:*")
+    await redis_manager.delete_pattern("registrations:*")
     await db.refresh(transaction)
 
     if should_send_email:

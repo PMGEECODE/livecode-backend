@@ -1,7 +1,9 @@
+import json
 import uuid
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +33,14 @@ async def read_registrations(
     skip = max(0, skip)
     limit = max(1, min(limit, 500))
 
+    cache_key = f"registrations:list:skip_{skip}:limit_{limit}"
+    cached = await redis_manager.get(cache_key)
+    if cached:
+        try:
+            return json.loads(cached)
+        except Exception:
+            pass
+
     result = await db.execute(
         select(CourseRegistration)
         .order_by(CourseRegistration.id.desc())
@@ -49,7 +59,7 @@ async def read_registrations(
         for tx in payment_result.scalars().all():
             payment_map.setdefault(tx.registration_id, tx)
 
-    return [
+    payload = [
         {
             "id": str(r.id),
             "course_id": str(r.course_id) if r.course_id else None,
@@ -95,6 +105,14 @@ async def read_registrations(
         for r in regs
     ]
 
+    await redis_manager.set(
+        cache_key,
+        json.dumps(jsonable_encoder(payload)),
+        expire=300,
+    )
+
+    return payload
+
 
 @router.patch(
     "/{id}",
@@ -128,8 +146,9 @@ async def update_registration_status(
     await db.commit()
     await db.refresh(registration)
     
-    # Invalidate dashboard cache
+    # Invalidate dashboard and registrations cache
     await redis_manager.delete_pattern("dashboard:*")
+    await redis_manager.delete_pattern("registrations:*")
     
     return {
         "id": str(registration.id),
@@ -163,8 +182,9 @@ async def delete_registration(
     await db.delete(registration)
     await db.commit()
     
-    # Invalidate dashboard cache
+    # Invalidate dashboard and registrations cache
     await redis_manager.delete_pattern("dashboard:*")
+    await redis_manager.delete_pattern("registrations:*")
     
     return {"message": "Registration deleted successfully"}
 
@@ -207,8 +227,9 @@ async def bulk_delete_registrations(
         
     await db.commit()
     
-    # Invalidate dashboard cache
+    # Invalidate dashboard and registrations cache
     await redis_manager.delete_pattern("dashboard:*")
+    await redis_manager.delete_pattern("registrations:*")
     
     return {"message": f"Successfully deleted {len(registrations)} registrations"}
 

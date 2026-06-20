@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_db
 from app.api.v1.endpoints.registration import process_registration_email
 from app.core.limiter import limiter
+from app.core.redis import redis_manager
 from app.db.models.course import Course
 from app.db.models.payment import PaymentTransaction
 from app.db.models.registration import CourseRegistration
@@ -283,6 +284,8 @@ async def mpesa_callback(
     db.add(transaction)
     try:
         await db.commit()
+        await redis_manager.delete_pattern("dashboard:*")
+        await redis_manager.delete_pattern("registrations:*")
     except Exception as e:
         await db.rollback()
         logger.error(f"Error committing transaction status update: {e}")

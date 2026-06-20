@@ -9,6 +9,7 @@ import stripe
 from app.api.deps import get_db
 from app.api.v1.endpoints.registration import process_registration_email
 from app.core.config import settings
+from app.core.redis import redis_manager
 from app.db.models.payment import PaymentTransaction
 from app.db.models.registration import CourseRegistration
 from app.schemas.payment import StripeChargeRequest
@@ -143,6 +144,8 @@ async def stripe_charge(
 
     try:
         await db.commit()
+        await redis_manager.delete_pattern("dashboard:*")
+        await redis_manager.delete_pattern("registrations:*")
     except Exception as e:
         await db.rollback()
         logger.error(f"Stripe commit error: {e}")

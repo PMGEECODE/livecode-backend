@@ -2,6 +2,7 @@ import pytest
 import pytest_asyncio
 import uuid
 from typing import AsyncGenerator
+from unittest.mock import AsyncMock, patch
 from fastapi import status
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -490,6 +491,44 @@ async def test_invoice_pdf_generator_details():
     pdf_bytes = pdf_buffer.getvalue()
     assert pdf_bytes.startswith(b"%PDF")
     assert len(pdf_bytes) > 1000  # Verify it generates a non-empty, reasonably-sized PDF
+
+
+@pytest.mark.asyncio
+async def test_registrations_caching_and_invalidation(async_client: AsyncClient):
+    """Verify that listing registrations hits and populates cache, and mutating routes invalidate it."""
+    mock_redis = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=None)
+    mock_redis.set = AsyncMock(return_value=True)
+    mock_redis.delete_pattern = AsyncMock(return_value=True)
+
+    with patch("app.api.v1.endpoints.registration_modules.admin.redis_manager", mock_redis), \
+         patch("app.api.v1.endpoints.registration_modules.public.redis_manager", mock_redis):
+        
+        # 1. Fetch registrations list — should call get and then set in Redis
+        response = await async_client.get("/api/v1/registrations/")
+        assert response.status_code == status.HTTP_200_OK
+        
+        mock_redis.get.assert_called_once_with("registrations:list:skip_0:limit_100")
+        mock_redis.set.assert_called_once()
+        
+        # 2. Simulate new registration submission — should trigger cache invalidation pattern
+        body = {
+            "course_title": "React Architecture",
+            "first_name": "Caching",
+            "last_name": "Test",
+            "email": "caching.test@company.com",
+            "registration_type": "individual",
+            "phone": "+254711223344",
+            "how_heard": "Word of Mouth",
+        }
+        mock_redis.get.reset_mock()
+        mock_redis.set.reset_mock()
+        
+        response = await async_client.post("/api/v1/registrations/", json=body)
+        assert response.status_code == status.HTTP_201_CREATED
+        
+        mock_redis.delete_pattern.assert_any_call("registrations:*")
+
 
 
 

@@ -84,3 +84,48 @@ class NewsletterDelivery(Base):
         self.error_message = error_message
         self.attempts = attempts
         self.sent_at = sent_at
+
+
+class NewsletterTheme(Base):
+    __tablename__ = "newsletter_themes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), nullable=False, unique=True, index=True)
+    primary_color = Column(String(7), nullable=False)
+    secondary_color = Column(String(7), nullable=False)
+    bg_color = Column(String(7), nullable=False)
+    card_bg = Column(String(7), nullable=False)
+    text_color = Column(String(7), nullable=False)
+    heading_color = Column(String(7), nullable=False)
+    font_family = Column(String(255), nullable=False, default="'Outfit', 'Inter', -apple-system, sans-serif")
+    template_layout = Column(String(50), nullable=False, default="classic_card")
+    is_active = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __init__(
+        self,
+        *,
+        name=None,
+        primary_color=None,
+        secondary_color=None,
+        bg_color=None,
+        card_bg=None,
+        text_color=None,
+        heading_color=None,
+        font_family="'Outfit', 'Inter', -apple-system, sans-serif",
+        template_layout="classic_card",
+        is_active=False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.name = name
+        self.primary_color = primary_color
+        self.secondary_color = secondary_color
+        self.bg_color = bg_color
+        self.card_bg = card_bg
+        self.text_color = text_color
+        self.heading_color = heading_color
+        self.font_family = font_family
+        self.template_layout = template_layout
+        self.is_active = is_active

@@ -107,8 +107,9 @@ async def submit_registration(
     if payload.payment_method == "Offline":
         background_tasks.add_task(process_registration_email, reg_dict, course_dict)
 
-    # Invalidate dashboard cache
+    # Invalidate dashboard and registrations cache
     await redis_manager.delete_pattern("dashboard:*")
+    await redis_manager.delete_pattern("registrations:*")
 
     return RegistrationResponse(
         id=str(registration.id),

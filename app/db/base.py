@@ -10,5 +10,5 @@ from app.db.models.payment_option import PaymentOptionSetting  # noqa
 from app.db.models.partner import TrustedPartner  # noqa
 from app.db.models.trainer import TrainerApplication  # noqa
 from app.db.models.analytics import ProductAnalyticsEvent  # noqa
-from app.db.models.newsletter import NewsletterSubscriber, NewsletterDelivery  # noqa
+from app.db.models.newsletter import NewsletterSubscriber, NewsletterDelivery, NewsletterTheme  # noqa
 from app.db.models.product import Product  # noqa

@@ -77,3 +77,96 @@ class NewsletterSubscriberResponse(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class NewsletterThemeBase(BaseModel):
+    name: str
+    primary_color: str
+    secondary_color: str
+    bg_color: str
+    card_bg: str
+    text_color: str
+    heading_color: str
+    font_family: Optional[str] = "'Outfit', 'Inter', -apple-system, sans-serif"
+    template_layout: Optional[str] = "classic_card"
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        value = _clean(value, 100)
+        if len(value) < 2:
+            raise ValueError("Theme name is required.")
+        return value
+
+    @field_validator("primary_color", "secondary_color", "bg_color", "card_bg", "text_color", "heading_color")
+    @classmethod
+    def validate_hex_color(cls, value: str) -> str:
+        value = value.strip()
+        if not re.match(r"^#(?:[0-9a-fA-F]{3}){1,2}$", value):
+            raise ValueError("Must be a valid hex color starting with #")
+        return value
+
+    @field_validator("template_layout")
+    @classmethod
+    def validate_layout(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return "classic_card"
+        allowed = ["classic_card", "minimalist", "modern_split", "compact_digest"]
+        if value not in allowed:
+            raise ValueError(f"Template layout must be one of: {', '.join(allowed)}")
+        return value
+
+
+class NewsletterThemeCreate(NewsletterThemeBase):
+    pass
+
+
+class NewsletterThemeUpdate(BaseModel):
+    name: Optional[str] = None
+    primary_color: Optional[str] = None
+    secondary_color: Optional[str] = None
+    bg_color: Optional[str] = None
+    card_bg: Optional[str] = None
+    text_color: Optional[str] = None
+    heading_color: Optional[str] = None
+    font_family: Optional[str] = None
+    template_layout: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = _clean(value, 100)
+        if len(value) < 2:
+            raise ValueError("Theme name is required.")
+        return value
+
+    @field_validator("primary_color", "secondary_color", "bg_color", "card_bg", "text_color", "heading_color")
+    @classmethod
+    def validate_hex_color(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = value.strip()
+        if not re.match(r"^#(?:[0-9a-fA-F]{3}){1,2}$", value):
+            raise ValueError("Must be a valid hex color starting with #")
+        return value
+
+    @field_validator("template_layout")
+    @classmethod
+    def validate_layout(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        allowed = ["classic_card", "minimalist", "modern_split", "compact_digest"]
+        if value not in allowed:
+            raise ValueError(f"Template layout must be one of: {', '.join(allowed)}")
+        return value
+
+
+class NewsletterThemeResponse(NewsletterThemeBase):
+    id: UUID
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
