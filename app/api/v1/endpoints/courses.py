@@ -88,7 +88,55 @@ async def create_course(
     await redis_manager.delete_pattern("dashboard:*")
     
     await sse_manager.broadcast("courses_updated", {"action": "create", "id": str(new_course.id)})
+    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id)})
     return new_course
+
+@router.get("/draft", response_model=Optional[dict])
+async def get_course_draft(
+    current_user: models.User = Depends(deps.get_current_active_admin),
+) -> Any:
+    """
+    Retrieve the current logged-in user's course builder draft from Redis.
+    """
+    cache_key = f"course_draft:{current_user.id}"
+    cached_data = await redis_manager.get(cache_key)
+    if cached_data:
+        try:
+            return json.loads(cached_data)
+        except Exception:
+            pass
+    return None
+
+@router.put("/draft")
+async def save_course_draft(
+    draft_data: dict,
+    current_user: models.User = Depends(deps.get_current_active_admin),
+) -> Any:
+    """
+    Save/sync the current user's course builder draft to Redis.
+    """
+    cache_key = f"course_draft:{current_user.id}"
+    # Keep the draft for 30 days (2592000 seconds)
+    success = await redis_manager.set(cache_key, json.dumps(draft_data), expire=2592000)
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save course draft on server"
+        )
+    await sse_manager.broadcast("draft_updated", {"user_id": str(current_user.id)})
+    return {"status": "success"}
+
+@router.delete("/draft")
+async def delete_course_draft(
+    current_user: models.User = Depends(deps.get_current_active_admin),
+) -> Any:
+    """
+    Delete/clear the current user's course builder draft from Redis.
+    """
+    cache_key = f"course_draft:{current_user.id}"
+    await redis_manager.delete(cache_key)
+    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id)})
+    return {"status": "success"}
 
 @router.get("/{slug}", response_model=schemas.Course)
 @limiter.limit("60/minute")
@@ -149,6 +197,7 @@ async def update_course(
     await redis_manager.delete_pattern("dashboard:*")
     
     await sse_manager.broadcast("courses_updated", {"action": "update", "id": str(updated_course.id)})
+    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id)})
     return updated_course
 
 @router.delete("/{id}", response_model=schemas.Course)

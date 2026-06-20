@@ -1,6 +1,7 @@
 import pytest
 import pytest_asyncio
 import uuid
+from unittest.mock import patch
 from typing import AsyncGenerator
 from fastapi import status
 from httpx import AsyncClient, ASGITransport
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy import select
 
 from app.main import app
-from app.api.deps import get_db, get_current_active_superuser
+from app.api.deps import get_db, get_current_active_superuser, get_current_active_admin
 from app.db.base import Base
 from app.db.models.user import User
 from app.db.models.course import Course
@@ -37,9 +38,11 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+STATIC_USER_ID = uuid.UUID("12345678-1234-5678-1234-567812345678")
+
 async def mock_superuser():
     return User(
-        id=uuid.uuid4(),
+        id=STATIC_USER_ID,
         full_name="System Admin",
         email="admin@livecodetech.co.ke",
         hashed_password="hashed_pwd",
@@ -52,12 +55,35 @@ async def mock_superuser():
 async def setup_dependency_overrides():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    app.dependency_overrides[get_current_active_admin] = mock_superuser
     yield
     if get_db in app.dependency_overrides:
         del app.dependency_overrides[get_db]
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_admin in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_admin]
 
+
+@pytest_asyncio.fixture(autouse=True)
+async def mock_redis_for_drafts():
+    fake_redis = {}
+
+    async def fake_get(key: str):
+        return fake_redis.get(key)
+
+    async def fake_set(key: str, value: str, expire: int = 3600):
+        fake_redis[key] = value
+        return True
+
+    async def fake_delete(key: str):
+        fake_redis.pop(key, None)
+        return True
+
+    with patch("app.core.redis.redis_manager.get", side_effect=fake_get), \
+         patch("app.core.redis.redis_manager.set", side_effect=fake_set), \
+         patch("app.core.redis.redis_manager.delete", side_effect=fake_delete):
+        yield
 
 
 @pytest_asyncio.fixture
@@ -630,4 +656,76 @@ async def test_enabled_field_persisted_on_create(async_client: AsyncClient):
     data = get_resp.json()
     assert len(data["schedules"]) == 1
     assert data["schedules"][0]["enabled"] is False
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# F) DRAFT PERSISTENCE TESTS
+# ────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_put_delete_course_draft(async_client: AsyncClient):
+    """Verify that we can save, retrieve, and delete course drafts in Redis."""
+    # 1. Get draft (should return None/null initially)
+    get_resp = await async_client.get("/api/v1/courses/draft")
+    assert get_resp.status_code == status.HTTP_200_OK
+    assert get_resp.json() is None
+
+    # 2. Put draft
+    draft_payload = {"title": "Draft Course", "blocks": [{"type": "metadata", "title": "Draft Course"}]}
+    put_resp = await async_client.put("/api/v1/courses/draft", json=draft_payload)
+    assert put_resp.status_code == status.HTTP_200_OK
+    assert put_resp.json() == {"status": "success"}
+
+    # 3. Get draft (should return the saved payload)
+    get_resp2 = await async_client.get("/api/v1/courses/draft")
+    assert get_resp2.status_code == status.HTTP_200_OK
+    assert get_resp2.json() == draft_payload
+
+    # 4. Delete draft
+    del_resp = await async_client.delete("/api/v1/courses/draft")
+    assert del_resp.status_code == status.HTTP_200_OK
+    assert del_resp.json() == {"status": "success"}
+
+    # 5. Get draft (should be None/null again)
+    get_resp3 = await async_client.get("/api/v1/courses/draft")
+    assert get_resp3.status_code == status.HTTP_200_OK
+    assert get_resp3.json() is None
+
+
+@pytest.mark.asyncio
+async def test_course_draft_requires_authentication(async_client: AsyncClient):
+    """Verify that unauthenticated or non-admin users cannot access course draft endpoints."""
+    # Remove mock admin override temporarily
+    original = app.dependency_overrides.pop(get_current_active_admin, None)
+    try:
+        # GET draft without auth should fail
+        get_resp = await async_client.get("/api/v1/courses/draft")
+        assert get_resp.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
+
+        # PUT draft without auth should fail
+        put_resp = await async_client.put("/api/v1/courses/draft", json={"title": "Draft"})
+        assert put_resp.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
+
+        # DELETE draft without auth should fail
+        del_resp = await async_client.delete("/api/v1/courses/draft")
+        assert del_resp.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
+    finally:
+        if original is not None:
+            app.dependency_overrides[get_current_active_admin] = original
+
+
+@pytest.mark.asyncio
+async def test_course_draft_sql_injection_resilience(async_client: AsyncClient):
+    """Verify that draft payload is resilient to SQL injection attempts."""
+    injection_data = {"sql": "'; DROP TABLE course; --", "data": "dummy"}
+    put_resp = await async_client.put("/api/v1/courses/draft", json=injection_data)
+    assert put_resp.status_code == status.HTTP_200_OK
+
+    get_resp = await async_client.get("/api/v1/courses/draft")
+    assert get_resp.status_code == status.HTTP_200_OK
+    assert get_resp.json() == injection_data
+
+    # Verify database table is still queryable and unaffected
+    list_response = await async_client.get("/api/v1/courses/")
+    assert list_response.status_code == status.HTTP_200_OK
 

@@ -10,7 +10,7 @@ from alembic.runtime import migration
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.upload_security import upload_root
 from app.core.redis import redis_manager
+from app.core.metrics import metrics_registry
 from app.db.session import engine
 from app.services.newsletter_worker import newsletter_worker
 from app.services.registration_cleanup_worker import registration_cleanup_worker
@@ -189,6 +190,10 @@ async def sqlalchemy_timeout_handler(request: Request, exc: SATimeoutError):
 # ─────────────────────────────────────────────────────────────────────────────
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+@app.get("/metrics", response_class=PlainTextResponse)
+async def metrics():
+    return metrics_registry.generate_metrics_text()
 
 # Ensure restricted upload directory exists. It is NOT publicly mounted via StaticFiles.
 # Files are served only through validated API endpoints.

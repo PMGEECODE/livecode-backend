@@ -17,6 +17,7 @@ class MpesaStkPushResponse(BaseModel):
     checkout_request_id: str
     merchant_request_id: str
     customer_message: str
+    payment_token: Optional[str] = None
 
 
 class MpesaStatusResponse(BaseModel):
