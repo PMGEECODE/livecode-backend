@@ -61,9 +61,21 @@ async def check_db_health():
                     logger.info("🚀 Database migrations are UP TO DATE (Revision: %s)", current_rev)
                 else:
                     logger.warning(
-                        "⚠️  Database migrations are OUT OF SYNC! (Current: %s, Head: %s)",
+                        "⚠️  Database migrations are OUT OF SYNC! (Current: %s, Head: %s). Running upgrade...",
                         current_rev, head_rev,
                     )
+                    import subprocess
+                    import sys
+                    res = await asyncio.to_thread(
+                        subprocess.run,
+                        [sys.executable, "-m", "alembic", "upgrade", "head"],
+                        capture_output=True,
+                        text=True
+                    )
+                    if res.returncode == 0:
+                        logger.info("✅ Database upgraded successfully to head.")
+                    else:
+                        logger.error("❌ Database migration upgrade failed:\n%s", res.stderr)
             return  # success — exit the retry loop
 
         except Exception as exc:

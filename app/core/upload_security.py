@@ -54,12 +54,15 @@ async def read_upload_file_limited(file: UploadFile, max_bytes: int) -> bytes:
 
 
 def validate_image_upload(file: UploadFile, data: bytes) -> str:
-    if not file.content_type or not file.content_type.startswith("image/"):
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    is_image_mime = file.content_type and file.content_type.startswith("image/")
+    is_image_ext = ext in ALLOWED_IMAGE_EXTENSIONS
+    if not (is_image_mime or is_image_ext):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files are allowed.")
 
-    ext = os.path.splitext(file.filename or "")[1].lower()
     if ext == ".svg":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SVG uploads are not allowed.")
+
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -15,6 +15,8 @@ class ProductBase(BaseModel):
     image_gallery: Optional[List[str]] = Field(default_factory=list)
     features: List[str] = Field(default_factory=list)
     is_active: bool = True
+    preview_url: Optional[str] = Field(None, max_length=1024)
+    view_url: Optional[str] = Field(None, max_length=1024)
 
 class ProductCreate(ProductBase):
     pass
@@ -31,6 +33,8 @@ class ProductUpdate(BaseModel):
     image_gallery: Optional[List[str]] = None
     features: Optional[List[str]] = None
     is_active: Optional[bool] = None
+    preview_url: Optional[str] = Field(None, max_length=1024)
+    view_url: Optional[str] = Field(None, max_length=1024)
 
 class ProductInDBBase(ProductBase):
     id: UUID

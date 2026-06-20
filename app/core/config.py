@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     S3_BUCKET: str = "livecode_files"
     S3_TRAINER_PREFIX: str = "trainers"
 
+    # Vercel Blob Storage
+    BLOB_STORE_ID: str | None = None
+    BLOB_READ_WRITE_TOKEN: str | None = None
+
     # Newsletter automation
     NEWSLETTER_WORKER_ENABLED: bool = True
     NEWSLETTER_WORKER_INTERVAL_SECONDS: int = 300

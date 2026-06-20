@@ -19,6 +19,8 @@ class Product(Base):
     image_gallery = Column(JSON, nullable=True, default=[]) # List of image URLs
     features = Column(JSON, nullable=False, default=[])
     is_active = Column(Boolean, default=True)
+    preview_url = Column(String(1024), nullable=True)
+    view_url = Column(String(1024), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

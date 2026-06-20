@@ -7,7 +7,8 @@ from sqlalchemy.future import select
 from app.api import deps
 from app.db.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate, Product as ProductSchema
-from app.services.s3_storage import upload_public_object, _clean_key_part
+from app.services.s3_storage import _clean_key_part
+from app.services.vercel_blob import upload_product_image_blob
 from app.core.upload_security import read_upload_file_limited, validate_image_upload
 from app.core.config import settings
 
@@ -108,7 +109,7 @@ async def upload_product_image(
     current_user = Depends(deps.get_current_active_admin),
 ) -> Any:
     """
-    Upload a product image to S3.
+    Upload a product image to Vercel Blob.
     Returns the public URL of the uploaded image.
     """
     # Read and validate image
@@ -121,13 +122,12 @@ async def upload_product_image(
     safe_name = _clean_key_part(os.path.splitext(file.filename)[0][:50])
     filename = f"{safe_name}_{int(time.time())}.{ext}"
     
-    s3_key = f"products/{filename}"
+    blob_key = f"products/{filename}"
     
-    public_url = upload_public_object(
-        key=s3_key,
+    public_url = await upload_product_image_blob(
+        pathname=blob_key,
         data=data,
         content_type=file.content_type or "image/jpeg",
-        original_filename=file.filename
     )
     
     return {"url": public_url}
