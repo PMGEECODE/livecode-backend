@@ -7,3 +7,5 @@ from .contact import Contact, ContactCreate, ContactUpdate  # noqa
 from .payment import MpesaStkPushRequest, MpesaStkPushResponse, MpesaStatusResponse, PaystackInitializeRequest, PaystackInitializeResponse, PaystackStatusResponse, PaymentOptionResponse, PaymentOptionUpdate, PaymentOptionsResponse  # noqa
 from .partner import TrustedPartner, TrustedPartnerCreate, TrustedPartnerUpdate  # noqa
 from .trainer import TrainerApplicationCreate, TrainerApplicationUpdate, TrainerApplicationResponse  # noqa
+from .support import SupportSessionCreate, SupportSessionResponse, SupportMessageCreate, SupportMessageResponse, SupportTypingPayload  # noqa
+
