@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _HTML_RE = re.compile(r"<[^>]*>")
-_PHONE_RE = re.compile(r"^\+?[0-9\s\-()]{7,30}$")
 
 
 def _clean(value: str, max_length: int) -> str:
@@ -16,6 +15,21 @@ def _clean(value: str, max_length: int) -> str:
     value = _HTML_RE.sub("", value)
     value = re.sub(r"\s+", " ", value).strip()
     return value[:max_length]
+
+
+def is_plausible_phone_number(value: str) -> bool:
+    digits = re.sub(r"\D", "", value)
+    if not (9 <= len(digits) <= 15):
+        return False
+    if re.match(r"^(\d)\1+$", digits):
+        return False
+    
+    ascending = "01234567890123456789"
+    descending = "98765432109876543210"
+    if digits in ascending or digits in descending:
+        return False
+    
+    return True
 
 
 class NewsletterSubscribe(BaseModel):
@@ -51,8 +65,8 @@ class NewsletterSubscribe(BaseModel):
         value = _clean(value, 40)
         if not value:
             return None
-        if not _PHONE_RE.match(value):
-            raise ValueError("Invalid phone number.")
+        if not is_plausible_phone_number(value):
+            raise ValueError("Please enter a valid phone number with 9 to 15 digits.")
         return value
 
     @field_validator("source")

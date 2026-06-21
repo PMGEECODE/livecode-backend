@@ -33,6 +33,14 @@ from app.services.support_worker import support_email_worker
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Suppress noise from continuous presence heartbeat endpoint in access logs
+        return "/support/presence" not in record.getMessage()
+
+# Apply filter to uvicorn access logs
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 async def check_db_health():
     db_url = str(engine.url)
     if ":" in db_url and "@" in db_url:
