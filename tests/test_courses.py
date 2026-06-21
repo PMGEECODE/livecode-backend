@@ -729,3 +729,42 @@ async def test_course_draft_sql_injection_resilience(async_client: AsyncClient):
     list_response = await async_client.get("/api/v1/courses/")
     assert list_response.status_code == status.HTTP_200_OK
 
+
+@pytest.mark.asyncio
+async def test_course_search_and_pagination_headers(async_client: AsyncClient):
+    """Verify that courses search query returns correct matches and sets X-Total-Count headers."""
+    # 1. Verify default courses list returns X-Total-Count header
+    list_response = await async_client.get("/api/v1/courses/")
+    assert list_response.status_code == status.HTTP_200_OK
+    assert "X-Total-Count" in list_response.headers
+    
+    # 2. Search for a specific query that matches nothing
+    search_response = await async_client.get("/api/v1/courses/", params={"search": "completely_nonexistent_search_query"})
+    assert search_response.status_code == status.HTTP_200_OK
+    assert search_response.headers["X-Total-Count"] == "0"
+    assert len(search_response.json()) == 0
+
+    # 3. Test caching behavior with search params
+    # Initial request sets the cache
+    first_resp = await async_client.get("/api/v1/courses/", params={"search": "fundamentals"})
+    assert first_resp.status_code == status.HTTP_200_OK
+    count_matches = first_resp.headers["X-Total-Count"]
+    
+    # Second request retrieves from cache, checking if header is successfully mapped
+    second_resp = await async_client.get("/api/v1/courses/", params={"search": "fundamentals"})
+    assert second_resp.status_code == status.HTTP_200_OK
+    assert second_resp.headers["X-Total-Count"] == count_matches
+
+
+@pytest.mark.asyncio
+async def test_course_categories_endpoint(async_client: AsyncClient):
+    """Verify that courses categories endpoint returns structured categories and subcategories."""
+    response = await async_client.get("/api/v1/courses/categories")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert isinstance(data, list)
+    if len(data) > 0:
+        assert "category" in data[0]
+        assert "sub_categories" in data[0]
+        assert isinstance(data[0]["sub_categories"], list)
+

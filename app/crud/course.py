@@ -1,5 +1,5 @@
 from typing import Optional, List, Union, Dict, Any
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from fastapi.encoders import jsonable_encoder
@@ -170,6 +170,7 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         limit: int = 100,
         category: Optional[str] = None,
         sub_category: Optional[str] = None,
+        search: Optional[str] = None,
         random: bool = False,
         summary: bool = False,
         active_only: bool = False,
@@ -179,6 +180,16 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
             query = query.filter(func.lower(Course.category) == category.strip().lower())
         if sub_category:
             query = query.filter(func.lower(Course.sub_category) == sub_category.strip().lower())
+        if search:
+            search_val = f"%{search.strip().lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(Course.title).like(search_val),
+                    func.lower(Course.description).like(search_val),
+                    func.lower(Course.category).like(search_val),
+                    func.lower(Course.sub_category).like(search_val)
+                )
+            )
 
         options = [
             selectinload(Course.schedules),
@@ -339,5 +350,45 @@ class CRUDCourse(CRUDBase[Course, CourseCreate, CourseUpdate]):
         course_id = db_obj.id
         await db.commit()
         return await self.get(db, id=course_id)
+
+    async def count_multi(
+        self,
+        db: AsyncSession,
+        *,
+        category: Optional[str] = None,
+        sub_category: Optional[str] = None,
+        search: Optional[str] = None,
+        active_only: bool = False,
+    ) -> int:
+        if active_only:
+            courses = await self.get_multi(
+                db,
+                skip=0,
+                limit=1000000,
+                category=category,
+                sub_category=sub_category,
+                search=search,
+                summary=True,
+                active_only=True
+            )
+            return len(courses)
+            
+        query = select(func.count(Course.id))
+        if category:
+            query = query.filter(func.lower(Course.category) == category.strip().lower())
+        if sub_category:
+            query = query.filter(func.lower(Course.sub_category) == sub_category.strip().lower())
+        if search:
+            search_val = f"%{search.strip().lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(Course.title).like(search_val),
+                    func.lower(Course.description).like(search_val),
+                    func.lower(Course.category).like(search_val),
+                    func.lower(Course.sub_category).like(search_val)
+                )
+            )
+        result = await db.execute(query)
+        return result.scalar() or 0
 
 course = CRUDCourse(Course)

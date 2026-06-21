@@ -23,6 +23,7 @@ async def read_courses(
     limit: int = 100,
     category: Optional[str] = None,
     sub_category: Optional[str] = None,
+    search: Optional[str] = None,
     random: bool = False,
     summary: bool = False,
     active_only: bool = False,
@@ -33,12 +34,14 @@ async def read_courses(
     if not random:
         cache_key = (
             "courses:list:"
-            f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}:summary={summary}:active_only={active_only}"
+            f"skip={skip}:limit={limit}:category={category or ''}:sub_category={sub_category or ''}:search={search or ''}:summary={summary}:active_only={active_only}"
         )
         cached_data = await redis_manager.get(cache_key)
         if cached_data:
             try:
-                return json.loads(cached_data)
+                parsed = json.loads(cached_data)
+                response.headers["X-Total-Count"] = str(parsed["total_count"])
+                return parsed["items"]
             except Exception:
                 pass
 
@@ -48,16 +51,31 @@ async def read_courses(
         limit=limit,
         category=category,
         sub_category=sub_category,
+        search=search,
         random=random,
         summary=summary,
         active_only=active_only,
     )
 
+    total_count = await crud.course.count_multi(
+        db,
+        category=category,
+        sub_category=sub_category,
+        search=search,
+        active_only=active_only,
+    )
+
+    response.headers["X-Total-Count"] = str(total_count)
+
     if not random:
         try:
+            cache_payload = {
+                "items": jsonable_encoder(courses),
+                "total_count": total_count
+            }
             await redis_manager.set(
                 cache_key,
-                json.dumps(jsonable_encoder(courses)),
+                json.dumps(cache_payload),
                 expire=3600
             )
         except Exception:
@@ -137,6 +155,64 @@ async def delete_course_draft(
     await redis_manager.delete(cache_key)
     await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id), "reason": "discard"})
     return {"status": "success"}
+
+
+@router.get("/categories", response_model=List[dict])
+@limiter.limit("60/minute")
+async def read_course_categories(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(deps.get_db),
+    active_only: bool = True,
+) -> Any:
+    """
+    Retrieve unique categories and their sub-categories.
+    """
+    cache_key = f"courses:categories:active_only={active_only}"
+    cached_data = await redis_manager.get(cache_key)
+    if cached_data:
+        try:
+            return json.loads(cached_data)
+        except Exception:
+            pass
+
+    courses = await crud.course.get_multi(
+        db,
+        skip=0,
+        limit=100000,
+        active_only=active_only,
+        summary=True
+    )
+    
+    category_map = {}
+    for course in courses:
+        cat = course.category
+        sub_cat = course.sub_category
+        if not cat:
+            continue
+        if cat not in category_map:
+            category_map[cat] = set()
+        if sub_cat:
+            category_map[cat].add(sub_cat)
+            
+    result = []
+    for cat, sub_cats in sorted(category_map.items()):
+        result.append({
+            "category": cat,
+            "sub_categories": sorted(list(sub_cats))
+        })
+
+    try:
+        await redis_manager.set(
+            cache_key,
+            json.dumps(result),
+            expire=3600
+        )
+    except Exception:
+        pass
+
+    return result
+
 
 @router.get("/{slug}", response_model=schemas.Course)
 @limiter.limit("60/minute")
