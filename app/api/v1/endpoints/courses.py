@@ -88,7 +88,7 @@ async def create_course(
     await redis_manager.delete_pattern("dashboard:*")
     
     await sse_manager.broadcast("courses_updated", {"action": "create", "id": str(new_course.id)})
-    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id)})
+    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id), "reason": "publish"})
     return new_course
 
 @router.get("/draft", response_model=Optional[dict])
@@ -135,7 +135,7 @@ async def delete_course_draft(
     """
     cache_key = f"course_draft:{current_user.id}"
     await redis_manager.delete(cache_key)
-    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id)})
+    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id), "reason": "discard"})
     return {"status": "success"}
 
 @router.get("/{slug}", response_model=schemas.Course)
@@ -197,7 +197,7 @@ async def update_course(
     await redis_manager.delete_pattern("dashboard:*")
     
     await sse_manager.broadcast("courses_updated", {"action": "update", "id": str(updated_course.id)})
-    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id)})
+    await sse_manager.broadcast("draft_deleted", {"user_id": str(current_user.id), "reason": "save"})
     return updated_course
 
 @router.delete("/{id}", response_model=schemas.Course)
