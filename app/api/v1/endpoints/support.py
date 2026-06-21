@@ -18,12 +18,75 @@ from app.core.sse import sse_manager
 from app import schemas, models, crud
 from app.api import deps
 
+from sqlalchemy import select
+from app.db.session import SessionLocal
+
 def sanitize_text(text: str) -> str:
     escaped = html.escape(text.strip())
     profanities = ["slur1", "slur2"]
     for p in profanities:
         escaped = escaped.replace(p, "****")
     return escaped
+
+async def get_online_agents_count() -> int:
+    if not redis_manager.client:
+        return 0
+    cursor = 0
+    count = 0
+    while True:
+        cursor, keys = await redis_manager.client.scan(cursor=cursor, match="support:agent_presence:*", count=100)
+        count += len(keys)
+        if cursor == 0:
+            break
+    return count
+
+async def notify_offline_agents(meta: dict):
+    # Check if any agents are online
+    online_count = await get_online_agents_count()
+    if online_count == 0:
+        # No agents online. Send email to configured users.
+        async with SessionLocal() as db:
+            result = await db.execute(
+                select(models.User).where(
+                    models.User.receive_support_emails == True,
+                    models.User.is_active == True
+                )
+            )
+            notified_users = result.scalars().all()
+            for u in notified_users:
+                payload = {
+                    "to_email": u.email,
+                    "subject": f"New Live Support Request: {meta['user_name']}",
+                    "html_body": f"""
+                    <div style="font-family:sans-serif; padding:20px; background-color:#f8fafc; color:#334155;">
+                       <div style="max-width:600px; margin:0 auto; background-color:#ffffff; padding:24px; border:1px solid #e2e8f0; border-radius:12px;">
+                        <h2 style="color:#001A4D; margin-top:0;">New Live Support Request</h2>
+                        <p>Hello {html.escape(u.full_name or 'Agent')},</p>
+                        <p>A customer has started a live support chat, but no agents are currently online.</p>
+                        <hr style="border:none; border-top:1px solid #e2e8f0; margin:16px 0;" />
+                        <table cellpadding="4" cellspacing="0" style="font-size:14px; width:100%;">
+                          <tr>
+                            <td style="font-weight:700; width:120px; color:#475569;">Customer Name:</td>
+                            <td>{html.escape(meta['user_name'])}</td>
+                          </tr>
+                          <tr>
+                            <td style="font-weight:700; color:#475569;">Customer Email:</td>
+                            <td>{html.escape(meta['user_email'])}</td>
+                          </tr>
+                          <tr>
+                            <td style="font-weight:700; color:#475569;">Topic:</td>
+                            <td>{html.escape(meta['topic'])}</td>
+                          </tr>
+                        </table>
+                        <p style="margin-top:20px;">
+                          Please log in to the admin panel to assist the user.
+                        </p>
+                      </div>
+                    </div>
+                    """
+                }
+                if redis_manager.client:
+                    await redis_manager.client.rpush("support:email_queue", json.dumps(payload))
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -129,7 +192,8 @@ async def simulate_agent_reply(session_id: str, user_message: str):
 @router.post("/sessions", response_model=schemas.SupportSessionResponse)
 async def create_session(
     session_in: schemas.SupportSessionCreate,
-    request: Request
+    request: Request,
+    background_tasks: BackgroundTasks
 ) -> Any:
     """
     Initialize a new real-time support session.
@@ -168,6 +232,9 @@ async def create_session(
     
     # Broadcast session initialization
     await sse_manager.broadcast("support_session_started", meta)
+    
+    # Queue background task to check if agents are online and send email notification
+    background_tasks.add_task(notify_offline_agents, meta)
     
     return schemas.SupportSessionResponse(
         session_id=session_id,
@@ -484,3 +551,21 @@ async def upload_support_image(
 
     # 4. Return accessible media URL from Vercel Blob
     return {"url": public_url}
+
+
+@router.post("/presence")
+async def update_presence(
+    current_user: models.User = Depends(deps.get_current_active_user)
+) -> Any:
+    """
+    Heartbeat to update the agent's online presence in Redis.
+    """
+    if not redis_manager.client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Redis service not available"
+        )
+    # Set presence with 30s expiration
+    presence_key = f"support:agent_presence:{current_user.id}"
+    await redis_manager.client.set(presence_key, "1", ex=30)
+    return {"status": "success", "user_id": str(current_user.id)}

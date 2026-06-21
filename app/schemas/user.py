@@ -18,6 +18,7 @@ class UserBase(BaseModel):
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
     is_verified: Optional[bool] = False
+    receive_support_emails: Optional[bool] = False
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):

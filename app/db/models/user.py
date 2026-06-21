@@ -32,6 +32,7 @@ class User(Base):
 
     active_session_id = Column(String, nullable=True)
     session_expires_at = Column(DateTime(timezone=True), nullable=True)
+    receive_support_emails = Column(Boolean(), default=False, nullable=True)
 
     def __init__(
         self,
@@ -56,6 +57,7 @@ class User(Base):
         last_login: datetime | None = None,
         active_session_id: str | None = None,
         session_expires_at: datetime | None = None,
+        receive_support_emails: bool | None = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -77,6 +79,7 @@ class User(Base):
         self.is_verified = is_verified
         self.active_session_id = active_session_id
         self.session_expires_at = session_expires_at
+        self.receive_support_emails = receive_support_emails
         if created_at is not None:
             self.created_at = created_at
         if updated_at is not None:

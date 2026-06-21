@@ -26,6 +26,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             bio=obj_in.bio,
             avatar_url=obj_in.avatar_url,
             is_verified=obj_in.is_verified or False,
+            receive_support_emails=obj_in.receive_support_emails or False,
         )
         db.add(db_obj)
         await db.commit()

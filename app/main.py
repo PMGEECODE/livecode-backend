@@ -27,6 +27,7 @@ from app.core.metrics import metrics_registry
 from app.db.session import engine
 from app.services.newsletter_worker import newsletter_worker
 from app.services.registration_cleanup_worker import registration_cleanup_worker
+from app.services.support_worker import support_email_worker
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -102,11 +103,20 @@ async def lifespan(app: FastAPI):
     registration_cleanup_stop_event = asyncio.Event()
     registration_cleanup_task = asyncio.create_task(registration_cleanup_worker(registration_cleanup_stop_event))
 
+    support_email_stop_event = asyncio.Event()
+    support_email_task = asyncio.create_task(support_email_worker(support_email_stop_event))
+
     if settings.NEWSLETTER_WORKER_ENABLED:
         newsletter_stop_event = asyncio.Event()
         newsletter_task = asyncio.create_task(newsletter_worker(newsletter_stop_event))
     yield
     # Shutdown logic (if any)
+    support_email_stop_event.set()
+    try:
+        await asyncio.wait_for(support_email_task, timeout=10)
+    except asyncio.TimeoutError:
+        support_email_task.cancel()
+
     if newsletter_stop_event and newsletter_task:
         newsletter_stop_event.set()
         try:
