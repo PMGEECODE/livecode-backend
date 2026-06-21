@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import redis
 from app.core.redis import redis_manager
 from app.core.email import send_email_async
 
@@ -17,8 +18,8 @@ async def support_email_worker(stop_event: asyncio.Event) -> None:
             await asyncio.sleep(2)
             continue
         try:
-            # blpop blocks up to 2 seconds waiting for an item in the list
-            res = await redis_manager.client.blpop("support:email_queue", timeout=2)
+            # blpop blocks up to 1 second waiting for an item in the list
+            res = await redis_manager.client.blpop("support:email_queue", timeout=1)
             if res:
                 _, payload_raw = res
                 payload = json.loads(payload_raw)
@@ -31,6 +32,9 @@ async def support_email_worker(stop_event: asyncio.Event) -> None:
                     await send_email_async(to_email, subject, html_body)
         except asyncio.CancelledError:
             break
+        except (redis.exceptions.TimeoutError, asyncio.TimeoutError, TimeoutError):
+            # Normal timeout when the queue is empty; continue the loop
+            continue
         except Exception as exc:
             logger.error("❌ Support email worker cycle error: %s", exc)
             await asyncio.sleep(2)
