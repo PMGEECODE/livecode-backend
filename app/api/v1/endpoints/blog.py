@@ -27,7 +27,7 @@ async def read_blog_posts(
 async def create_blog_post(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
     post_in: schemas.BlogPostCreate,
 ) -> Any:
     """

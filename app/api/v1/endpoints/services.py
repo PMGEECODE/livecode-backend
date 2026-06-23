@@ -23,7 +23,7 @@ async def create_service(
     *,
     db: AsyncSession = Depends(deps.get_db),
     service_in: schemas.ServiceCreate,
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     """
     Create new service.

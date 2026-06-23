@@ -7,7 +7,7 @@ from fastapi import status
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.main import app
-from app.api.deps import get_db, get_current_active_superuser
+from app.api.deps import get_db, get_current_active_superuser, get_current_active_user
 from app.db.base import Base
 from app.crud.registration import create_registration
 from app.schemas.registration import RegistrationCreate
@@ -52,11 +52,14 @@ async def mock_superuser():
 async def setup_dependency_overrides():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    app.dependency_overrides[get_current_active_user] = mock_superuser
     yield
     if get_db in app.dependency_overrides:
         del app.dependency_overrides[get_db]
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
 
 
 

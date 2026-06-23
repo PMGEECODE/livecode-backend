@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy import select
 
 from app.main import app
-from app.api.deps import get_db, get_current_active_superuser
+from app.api.deps import get_db, get_current_active_superuser, get_current_active_user
 from app.db.base import Base
 from app.db.models.user import User
 from app.db.models.partner import TrustedPartner
@@ -52,11 +52,14 @@ async def mock_superuser():
 async def setup_dependency_overrides():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    app.dependency_overrides[get_current_active_user] = mock_superuser
     yield
     if get_db in app.dependency_overrides:
         del app.dependency_overrides[get_db]
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
 
 
 @pytest_asyncio.fixture
@@ -177,7 +180,7 @@ async def test_read_active_partners_public(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_create_partner_requires_superuser(async_client: AsyncClient):
     """POST /partners/ must block non-superusers."""
-    original = app.dependency_overrides.pop(get_current_active_superuser, None)
+    original = app.dependency_overrides.pop(get_current_active_user, None)
     try:
         response = await async_client.post("/api/v1/partners/", json={
             "name": "Unauthorized",
@@ -186,7 +189,7 @@ async def test_create_partner_requires_superuser(async_client: AsyncClient):
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
     finally:
         if original is not None:
-            app.dependency_overrides[get_current_active_superuser] = original
+            app.dependency_overrides[get_current_active_user] = original
 
 
 # ────────────────────────────────────────────────────────────────────────────

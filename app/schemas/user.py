@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 
 # Shared properties
 class UserBase(BaseModel):
@@ -50,3 +50,39 @@ class UserPaginated(BaseModel):
     users: List[User]
     total: int
 
+
+class UserMe(User):
+    permissions: List[str]
+
+
+class UserInviteCreate(BaseModel):
+    email: EmailStr
+    role: str
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        role = v.strip().lower()
+        valid_roles = {
+            "admin",
+            "user",
+            "moderator",
+            "instructor",
+        }
+        if role not in valid_roles:
+            raise ValueError(f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+        return role
+
+
+class UserInviteVerifyResponse(BaseModel):
+    email: str
+    role: str
+
+
+class UserInviteComplete(BaseModel):
+    token: str
+    password: str
+    first_name: str
+    last_name: str
+    phone: Optional[str] = None
+    username: Optional[str] = None

@@ -42,7 +42,7 @@ async def create_product(
     *,
     db: AsyncSession = Depends(deps.get_db),
     product_in: ProductCreate,
-    current_user = Depends(deps.get_current_active_admin),
+    current_user = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     """Create new product."""
     # Check if slug exists
@@ -62,7 +62,7 @@ async def update_product(
     db: AsyncSession = Depends(deps.get_db),
     id: uuid.UUID,
     product_in: ProductUpdate,
-    current_user = Depends(deps.get_current_active_admin),
+    current_user = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     """Update a product."""
     result = await db.execute(select(Product).where(Product.id == id))
@@ -91,7 +91,7 @@ async def delete_product(
     *,
     db: AsyncSession = Depends(deps.get_db),
     id: uuid.UUID,
-    current_user = Depends(deps.get_current_active_admin),
+    current_user = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     """Delete a product."""
     result = await db.execute(select(Product).where(Product.id == id))
@@ -106,7 +106,7 @@ async def delete_product(
 @router.post("/upload-image", response_model=dict)
 async def upload_product_image(
     file: UploadFile = File(...),
-    current_user = Depends(deps.get_current_active_admin),
+    current_user = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     """
     Upload a product image to Vercel Blob.

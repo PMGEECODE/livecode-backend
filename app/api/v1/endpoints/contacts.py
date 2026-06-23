@@ -30,7 +30,7 @@ async def read_contacts(
     db: AsyncSession = Depends(deps.get_db),
     skip: int = 0,
     limit: int = 100,
-    current_user = Depends(deps.get_current_active_superuser),
+    current_user = Depends(deps.check_permission("view_customers")),
 ) -> Any:
     """
     Retrieve contacts.
@@ -44,7 +44,7 @@ async def update_contact(
     db: AsyncSession = Depends(deps.get_db),
     id: uuid.UUID,
     contact_in: schemas.ContactUpdate,
-    current_user = Depends(deps.get_current_active_superuser),
+    current_user = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     """
     Update a contact message.
@@ -61,7 +61,7 @@ async def delete_contact(
     *,
     db: AsyncSession = Depends(deps.get_db),
     id: uuid.UUID,
-    current_user = Depends(deps.get_current_active_superuser),
+    current_user = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     """
     Delete a contact message.

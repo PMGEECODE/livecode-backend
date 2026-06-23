@@ -32,7 +32,7 @@ async def payment_availability(
 )
 async def admin_payment_options(
     db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("view_transactions")),
 ) -> PaymentOptionsResponse:
     options = await list_payment_options(db)
     return PaymentOptionsResponse(options=options)
@@ -47,7 +47,7 @@ async def update_payment_option(
     provider: str,
     payload: PaymentOptionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
 ) -> Any:
     setting: PaymentOptionSetting = await get_payment_option(db, provider)
     setting.is_enabled = payload.is_enabled

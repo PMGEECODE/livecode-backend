@@ -38,7 +38,7 @@ async def track_analytics_event(
 @router.get("/summary")
 async def get_analytics_summary(
     request: Request,
-    current_user=Depends(deps.get_current_active_superuser),
+    current_user=Depends(deps.check_permission("view_performance_metrics")),
     days: int = 30,
 ) -> Dict[str, Any]:
     # We must pass the authorization header since the analytics service expects it

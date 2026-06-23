@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 from fastapi import status
 from httpx import AsyncClient, ASGITransport
 from app.main import app
-from app.api.deps import get_db, get_current_active_superuser
+from app.api.deps import get_db, get_current_active_superuser, get_current_active_user
 from app.db.base import Base
 from app.db.models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -41,6 +41,8 @@ async def unauthenticated_client() -> AsyncGenerator[AsyncClient, None]:
     # Ensure there is no superuser override
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -57,11 +59,14 @@ async def authenticated_client() -> AsyncGenerator[AsyncClient, None]:
             is_superuser=True
         )
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    app.dependency_overrides[get_current_active_user] = mock_superuser
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
 
 # ─── A) UNAUTHENTICATED TESTS ───
 
@@ -236,4 +241,156 @@ async def test_error_response_json_for_apis(unauthenticated_client: AsyncClient)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert "application/json" in response.headers["content-type"]
     assert response.json()["detail"] == "Not authenticated"
+
+
+# ─── D) INVITE & ROLE-BASED ACCESS CONTROL TESTS ───
+
+@pytest.mark.asyncio
+async def test_read_user_me_authenticated(unauthenticated_client: AsyncClient):
+    """Verify that GET /users/me returns the logged in user profile with permissions."""
+    async def mock_active_user():
+        return User(
+            id=uuid.uuid4(),
+            full_name="Normal User",
+            email="user@example.com",
+            hashed_password="password",
+            is_active=True,
+            is_superuser=False,
+            role="moderator"
+        )
+    from app.api.deps import get_current_active_user
+    app.dependency_overrides[get_current_active_user] = mock_active_user
+    try:
+        response = await unauthenticated_client.get("/api/v1/users/me")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["email"] == "user@example.com"
+        assert data["role"] == "moderator"
+        assert "view_performance_metrics" in data["permissions"]
+        assert "manage_users" not in data["permissions"]
+    finally:
+        del app.dependency_overrides[get_current_active_user]
+
+
+@pytest.mark.asyncio
+async def test_invite_user_by_admin(unauthenticated_client: AsyncClient):
+    """Verify that an administrator can successfully invite a user."""
+    async def mock_admin_user():
+        return User(
+            id=uuid.uuid4(),
+            full_name="Admin User",
+            email="admin@example.com",
+            hashed_password="password",
+            is_active=True,
+            is_superuser=False,
+            role="admin"
+        )
+    from app.api.deps import get_current_active_user
+    app.dependency_overrides[get_current_active_user] = mock_admin_user
+    try:
+        payload = {
+            "email": "invited_member@example.com",
+            "role": "moderator"
+        }
+        response = await unauthenticated_client.post("/api/v1/users/invite", json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["status"] == "success"
+    finally:
+        del app.dependency_overrides[get_current_active_user]
+
+
+@pytest.mark.asyncio
+async def test_invite_user_insufficient_permissions(unauthenticated_client: AsyncClient):
+    """Verify that non-admin users cannot invite others (fail closed)."""
+    async def mock_moderator_user():
+        return User(
+            id=uuid.uuid4(),
+            full_name="Ops User",
+            email="ops@example.com",
+            hashed_password="password",
+            is_active=True,
+            is_superuser=False,
+            role="moderator"
+        )
+    from app.api.deps import get_current_active_user
+    app.dependency_overrides[get_current_active_user] = mock_moderator_user
+    try:
+        payload = {
+            "email": "invited_member@example.com",
+            "role": "moderator"
+        }
+        response = await unauthenticated_client.post("/api/v1/users/invite", json=payload)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        del app.dependency_overrides[get_current_active_user]
+
+
+@pytest.mark.asyncio
+async def test_verify_and_complete_invite(unauthenticated_client: AsyncClient):
+    """Verify the end-to-end token verification and account completion workflow."""
+    async def mock_admin_user():
+        return User(
+            id=uuid.uuid4(),
+            full_name="Admin User",
+            email="admin@example.com",
+            is_active=True,
+            is_superuser=True
+        )
+    from app.api.deps import get_current_active_user
+    app.dependency_overrides[get_current_active_user] = mock_admin_user
+    try:
+        invite_payload = {
+            "email": "setup_member@example.com",
+            "role": "moderator"
+        }
+        from app.api.deps import get_current_active_superuser
+        app.dependency_overrides[get_current_active_superuser] = mock_admin_user
+        
+        response = await unauthenticated_client.post("/api/v1/users/invite", json=invite_payload)
+        assert response.status_code == status.HTTP_201_CREATED
+    finally:
+        del app.dependency_overrides[get_current_active_user]
+        del app.dependency_overrides[get_current_active_superuser]
+
+    async with TestingSessionLocal() as session:
+        from app.db.models.user_invite import UserInvite
+        from sqlalchemy import select
+        res = await session.execute(select(UserInvite).filter(UserInvite.email == "setup_member@example.com"))
+        invite = res.scalars().first()
+        assert invite is not None
+        token = invite.token
+
+    verify_resp = await unauthenticated_client.get(f"/api/v1/users/invite/verify?token={token}")
+    assert verify_resp.status_code == status.HTTP_200_OK
+    verify_data = verify_resp.json()
+    assert verify_data["email"] == "setup_member@example.com"
+    assert verify_data["role"] == "moderator"
+
+    complete_payload = {
+        "token": token,
+        "password": "securepassword123",
+        "first_name": "Setup",
+        "last_name": "Member",
+        "phone": "+254700000000",
+        "username": "setupmember"
+    }
+    complete_resp = await unauthenticated_client.post("/api/v1/users/invite/complete", json=complete_payload)
+    assert complete_resp.status_code == status.HTTP_200_OK
+    assert complete_resp.json()["status"] == "success"
+
+    async with TestingSessionLocal() as session:
+        res = await session.execute(select(User).filter(User.email == "setup_member@example.com"))
+        created_user = res.scalars().first()
+        assert created_user is not None
+        assert created_user.role == "moderator"
+        assert created_user.first_name == "Setup"
+        assert created_user.last_name == "Member"
+        assert created_user.phone == "+254700000000"
+        assert created_user.username == "setupmember"
+        assert created_user.is_superuser is False
+
+        res_invite = await session.execute(select(UserInvite).filter(UserInvite.token == token))
+        invite_db = res_invite.scalars().first()
+        assert invite_db.is_used is True
+
 

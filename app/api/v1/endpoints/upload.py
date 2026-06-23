@@ -43,7 +43,7 @@ def _purge_course_dir_sync(course_dir: str) -> None:
 async def upload_image(
     file: UploadFile = File(...),
     slug: str = Form(default=""),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
 ) -> dict:
     """
     Upload a course image.
@@ -89,7 +89,7 @@ async def upload_image(
 @router.delete("/{slug}", response_model=dict)
 async def delete_image(
     slug: str,
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
 ) -> dict:
     """
     Delete all uploaded images for the given course slug.

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy import select
 
 from app.main import app
-from app.api.deps import get_db, get_current_active_superuser, get_current_active_admin
+from app.api.deps import get_db, get_current_active_superuser, get_current_active_admin, get_current_active_user
 from app.db.base import Base
 from app.db.models.user import User
 from app.db.models.course import Course
@@ -56,6 +56,7 @@ async def setup_dependency_overrides():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
     app.dependency_overrides[get_current_active_admin] = mock_superuser
+    app.dependency_overrides[get_current_active_user] = mock_superuser
     yield
     if get_db in app.dependency_overrides:
         del app.dependency_overrides[get_db]
@@ -63,6 +64,8 @@ async def setup_dependency_overrides():
         del app.dependency_overrides[get_current_active_superuser]
     if get_current_active_admin in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_admin]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -314,7 +317,7 @@ async def test_course_list_is_public(async_client: AsyncClient):
 async def test_create_requires_superuser(async_client: AsyncClient):
     """POST /courses/ must be blocked for unauthenticated callers."""
     # Remove override temporarily to simulate unauthenticated caller
-    original = app.dependency_overrides.pop(get_current_active_superuser, None)
+    original = app.dependency_overrides.pop(get_current_active_user, None)
     try:
         response = await async_client.post("/api/v1/courses/", json={
             "title": "Should Not Create",
@@ -324,7 +327,7 @@ async def test_create_requires_superuser(async_client: AsyncClient):
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
     finally:
         if original is not None:
-            app.dependency_overrides[get_current_active_superuser] = original
+            app.dependency_overrides[get_current_active_user] = original
 
 
 @pytest.mark.asyncio
@@ -337,13 +340,13 @@ async def test_update_requires_superuser(async_client: AsyncClient):
     })
     course_id = create_response.json()["id"]
 
-    original = app.dependency_overrides.pop(get_current_active_superuser, None)
+    original = app.dependency_overrides.pop(get_current_active_user, None)
     try:
         response = await async_client.put(f"/api/v1/courses/{course_id}", json={"sub_category": "GIS Training Courses"})
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
     finally:
         if original is not None:
-            app.dependency_overrides[get_current_active_superuser] = original
+            app.dependency_overrides[get_current_active_user] = original
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -695,8 +698,8 @@ async def test_get_put_delete_course_draft(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_course_draft_requires_authentication(async_client: AsyncClient):
     """Verify that unauthenticated or non-admin users cannot access course draft endpoints."""
-    # Remove mock admin override temporarily
-    original = app.dependency_overrides.pop(get_current_active_admin, None)
+    # Remove mock user override temporarily
+    original = app.dependency_overrides.pop(get_current_active_user, None)
     try:
         # GET draft without auth should fail
         get_resp = await async_client.get("/api/v1/courses/draft")
@@ -711,7 +714,7 @@ async def test_course_draft_requires_authentication(async_client: AsyncClient):
         assert del_resp.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
     finally:
         if original is not None:
-            app.dependency_overrides[get_current_active_admin] = original
+            app.dependency_overrides[get_current_active_user] = original
 
 
 @pytest.mark.asyncio

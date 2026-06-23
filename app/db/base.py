@@ -12,3 +12,5 @@ from app.db.models.trainer import TrainerApplication  # noqa
 from app.db.models.analytics import ProductAnalyticsEvent  # noqa
 from app.db.models.newsletter import NewsletterSubscriber, NewsletterDelivery, NewsletterTheme  # noqa
 from app.db.models.product import Product  # noqa
+from app.db.models.user_invite import UserInvite  # noqa
+

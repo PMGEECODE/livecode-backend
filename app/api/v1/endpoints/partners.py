@@ -76,7 +76,7 @@ async def list_active_partners(
 @router.get("/admin", response_model=List[TrustedPartner])
 async def list_all_partners(
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("view_performance_metrics")),
 ) -> Any:
     """Return all trusted partners (including inactive) for admin management."""
     return await trusted_partner.get_all(db)
@@ -86,7 +86,7 @@ async def list_all_partners(
 async def create_partner(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
     partner_in: TrustedPartnerCreate,
 ) -> Any:
     """Create a new trusted partner."""
@@ -99,7 +99,7 @@ async def create_partner(
 async def update_partner(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
     partner_id: str,
     partner_in: TrustedPartnerUpdate,
 ) -> Any:
@@ -123,7 +123,7 @@ async def update_partner(
 async def delete_partner(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
     partner_id: str,
 ) -> None:
     """Permanently delete a trusted partner and its logo file."""
@@ -156,7 +156,7 @@ async def delete_partner(
 async def upload_partner_logo(
     file: UploadFile = File(...),
     partner_name: str = Form(default=""),
-    current_user: models.User = Depends(deps.get_current_active_superuser),
+    current_user: models.User = Depends(deps.check_permission("manage_customers")),
 ) -> dict:
     """
     Upload a partner logo image.

@@ -87,11 +87,12 @@ def get_current_active_user(
 def get_current_active_superuser(
     current_user: models.User = Depends(get_current_active_user),
 ) -> models.User:
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
-        )
-    return current_user
+    role = (getattr(current_user, "role", None) or "").strip().lower()
+    if current_user.is_superuser or role == "admin":
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
+    )
 
 def get_current_active_admin(
     current_user: models.User = Depends(get_current_active_user),
@@ -109,3 +110,60 @@ def get_current_active_admin(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="The user doesn't have enough privileges",
     )
+
+
+ROLE_PERMISSIONS = {
+    "admin": [
+        "view_performance_metrics",
+        "view_transactions",
+        "export_transactions",
+        "manage_refunds_disputes",
+        "manage_customers",
+        "view_customers",
+        "manage_users",
+        "view_users"
+    ],
+    "user": [
+        "view_customers"
+    ],
+    "moderator": [
+        "view_performance_metrics",
+        "view_transactions",
+        "manage_customers",
+        "view_customers",
+        "view_users"
+    ],
+    "instructor": [
+        "view_performance_metrics",
+        "view_customers"
+    ]
+}
+
+
+def get_user_permissions(user: models.User) -> list[str]:
+    if user.is_superuser:
+        return [
+            "view_performance_metrics",
+            "view_transactions",
+            "export_transactions",
+            "manage_refunds_disputes",
+            "manage_customers",
+            "view_customers",
+            "manage_users",
+            "view_users"
+        ]
+    role = (user.role or "").strip().lower()
+    return ROLE_PERMISSIONS.get(role, [])
+
+
+def check_permission(permission: str):
+    def dependency(current_user: models.User = Depends(get_current_active_user)):
+        perms = get_user_permissions(current_user)
+        if permission not in perms:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have the necessary permissions to access this resource."
+            )
+        return current_user
+    return dependency
+

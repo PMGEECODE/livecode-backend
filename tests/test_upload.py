@@ -8,7 +8,7 @@ from typing import AsyncGenerator
 from fastapi import status
 from httpx import AsyncClient, ASGITransport
 from app.main import app
-from app.api.deps import get_db, get_current_active_superuser
+from app.api.deps import get_db, get_current_active_superuser, get_current_active_user
 from app.db.base import Base
 from app.db.models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -63,6 +63,8 @@ async def setup_dependency_overrides():
 async def unauthenticated_client() -> AsyncGenerator[AsyncClient, None]:
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -79,11 +81,14 @@ async def authenticated_client() -> AsyncGenerator[AsyncClient, None]:
             is_superuser=True
         )
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    app.dependency_overrides[get_current_active_user] = mock_superuser
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
 
 def _create_valid_png() -> bytes:
     from PIL import Image

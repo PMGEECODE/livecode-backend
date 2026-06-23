@@ -10,7 +10,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from app.main import app
-from app.api.deps import get_db, get_current_active_superuser
+from app.api.deps import get_db, get_current_active_superuser, get_current_active_user
 from app.db.base import Base
 from app.db.models.user import User
 from app.services.s3_storage import StoredObject
@@ -96,6 +96,8 @@ async def setup_dependency_overrides():
         del app.dependency_overrides[get_db]
     if get_current_active_superuser in app.dependency_overrides:
         del app.dependency_overrides[get_current_active_superuser]
+    if get_current_active_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_active_user]
 
 
 # Store the uploaded CV filename across tests
@@ -242,6 +244,7 @@ async def test_list_applications_requires_auth():
 async def test_list_applications_superuser():
     """Authorized superuser must be able to list applications."""
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    app.dependency_overrides[get_current_active_user] = mock_superuser
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/trainers/applications")
@@ -268,6 +271,7 @@ async def test_update_status_requires_auth():
 async def test_update_status_invalid_status_value_rejected():
     """Even with a valid token, passing an invalid status value must return 422."""
     app.dependency_overrides[get_current_active_superuser] = mock_superuser
+    app.dependency_overrides[get_current_active_user] = mock_superuser
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.put(

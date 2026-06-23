@@ -25,7 +25,7 @@ _STATS_CACHE_TTL = 60
 @router.get("/stats")
 async def get_dashboard_stats(
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.get_current_active_superuser),
+    current_user=Depends(deps.check_permission("view_performance_metrics")),
 ) -> Dict[str, Any]:
     """
     Retrieve system-wide dashboard statistics.

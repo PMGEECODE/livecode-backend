@@ -1,5 +1,5 @@
 from .token import Token, TokenPayload  # noqa
-from .user import User, UserCreate, UserUpdate, UserInDB, UserPaginated  # noqa
+from .user import User, UserCreate, UserUpdate, UserInDB, UserPaginated, UserMe, UserInviteCreate, UserInviteVerifyResponse, UserInviteComplete  # noqa
 from .blog import BlogPost, BlogPostCreate, BlogPostUpdate  # noqa
 from .course import Course, CourseCreate, CourseUpdate, CourseSummary  # noqa
 from .service import Service, ServiceCreate, ServiceUpdate  # noqa
