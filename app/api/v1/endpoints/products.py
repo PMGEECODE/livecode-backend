@@ -145,11 +145,20 @@ async def upload_product_image(
     
     blob_key = f"products/{filename}"
     
+    mime_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }
+    actual_content_type = mime_types.get(ext, file.content_type or "application/octet-stream")
+    
     try:
         public_url = await upload_product_image_blob(
             pathname=blob_key,
             data=data,
-            content_type=file.content_type or f"image/{ext.lstrip('.')}",
+            content_type=actual_content_type,
         )
     except HTTPException as e:
         logger.error(

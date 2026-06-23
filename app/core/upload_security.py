@@ -55,29 +55,39 @@ async def read_upload_file_limited(file: UploadFile, max_bytes: int) -> bytes:
 
 def validate_image_upload(file: UploadFile, data: bytes) -> str:
     ext = os.path.splitext(file.filename or "")[1].lower()
+    
+    if ext == ".svg":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SVG uploads are not allowed.")
+        
     is_image_mime = file.content_type and file.content_type.startswith("image/")
     is_image_ext = ext in ALLOWED_IMAGE_EXTENSIONS
     if not (is_image_mime or is_image_ext):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files are allowed.")
 
-    if ext == ".svg":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SVG uploads are not allowed.")
-
-    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+    if ext and ext not in ALLOWED_IMAGE_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported image format. Allowed: jpg, jpeg, png, webp, gif.",
         )
 
-    signatures = IMAGE_SIGNATURES[ext]
-    if not any(data.startswith(signature) for signature in signatures):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File content does not match the image type.")
+    # Auto-detect actual image format from magic bytes signature
+    detected_ext = None
+    for ext_candidate, signatures in IMAGE_SIGNATURES.items():
+        if any(data.startswith(signature) for signature in signatures):
+            detected_ext = ext_candidate
+            break
 
-    if ext == ".webp":
+    if not detected_ext:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File content does not match the image type.",
+        )
+
+    if detected_ext == ".webp":
         if len(data) < 12 or data[8:12] != b"WEBP":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid WebP image content.")
 
-    return ext
+    return detected_ext
 
 
 def validate_document_upload(file: UploadFile, data: bytes, allowed_extensions: set[str]) -> str:
