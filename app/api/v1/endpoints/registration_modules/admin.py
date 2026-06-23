@@ -25,7 +25,7 @@ async def read_registrations(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    current_user = Depends(deps.check_permission("view_customers")),
+    current_user = Depends(deps.check_permission("view_registrations")),
 ) -> Any:
     """
     Retrieve all registrations in the database. Restricted to superusers.
@@ -123,7 +123,7 @@ async def update_registration_status(
     id: uuid.UUID,
     payload: dict,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.check_permission("manage_customers")),
+    current_user = Depends(deps.check_permission("manage_registrations")),
 ) -> Any:
     """
     Update registration status (e.g. pending, confirmed, cancelled).
@@ -169,7 +169,7 @@ async def update_registration_status(
 async def delete_registration(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.check_permission("manage_customers")),
+    current_user = Depends(deps.check_permission("manage_registrations")),
 ) -> Any:
     """
     Delete a registration record.
@@ -197,7 +197,7 @@ async def delete_registration(
 async def bulk_delete_registrations(
     payload: dict,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.check_permission("manage_customers")),
+    current_user = Depends(deps.check_permission("manage_registrations")),
 ) -> Any:
     """
     Delete multiple registrations at once.

@@ -771,3 +771,38 @@ async def test_course_categories_endpoint(async_client: AsyncClient):
         assert "sub_categories" in data[0]
         assert isinstance(data[0]["sub_categories"], list)
 
+
+@pytest.mark.asyncio
+async def test_delete_course_requires_delete_permission(async_client: AsyncClient):
+    """Verify that deleting a course is restricted to users with delete_courses permission."""
+    # 1. Create a course as superuser
+    create_response = await async_client.post("/api/v1/courses/", json={
+        "title": "Auth Delete Test",
+        "slug": "auth-delete-test",
+        "category": "Technical Courses",
+    })
+    assert create_response.status_code == status.HTTP_200_OK
+    course_id = create_response.json()["id"]
+
+    # 2. Simulate moderator active user (who does not have delete_courses permission)
+    async def mock_moderator():
+        return User(
+            id=STATIC_USER_ID,
+            full_name="Moderator User",
+            email="moderator@livecodetech.co.ke",
+            hashed_password="hashed_pwd",
+            is_active=True,
+            is_superuser=False,
+            role="moderator",
+        )
+
+    # Override get_current_active_user
+    app.dependency_overrides[get_current_active_user] = mock_moderator
+    try:
+        # Attempt delete as moderator (should be rejected with 403)
+        del_response = await async_client.delete(f"/api/v1/courses/{course_id}")
+        assert del_response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        # Clean up dependency override
+        app.dependency_overrides[get_current_active_user] = mock_superuser
+

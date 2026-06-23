@@ -82,7 +82,7 @@ async def unsubscribe_newsletter(token: str, db: AsyncSession = Depends(deps.get
 @router.get("/subscribers", response_model=List[NewsletterSubscriberResponse])
 async def list_newsletter_subscribers(
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.check_permission("view_customers")),
+    current_user=Depends(deps.check_permission("view_newsletters")),
 ) -> Any:
     result = await db.execute(select(NewsletterSubscriber).order_by(NewsletterSubscriber.created_at.desc()).limit(500))
     return result.scalars().all()
@@ -92,7 +92,7 @@ async def list_newsletter_subscribers(
 async def dispatch_newsletter_manually(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.check_permission("manage_customers")),
+    current_user=Depends(deps.check_permission("manage_newsletters")),
 ) -> dict:
     """Manually dispatch the weekly digest newsletter to all active subscribers."""
     now = datetime.now(timezone.utc)
@@ -146,7 +146,7 @@ async def dispatch_newsletter_manually(
 @router.get("/themes", response_model=List[NewsletterThemeResponse])
 async def list_newsletter_themes(
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.check_permission("view_customers")),
+    current_user=Depends(deps.check_permission("view_newsletters")),
 ) -> Any:
     result = await db.execute(select(NewsletterTheme).order_by(NewsletterTheme.name.asc()))
     return result.scalars().all()
@@ -156,7 +156,7 @@ async def list_newsletter_themes(
 async def create_newsletter_theme(
     payload: NewsletterThemeCreate,
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.check_permission("manage_customers")),
+    current_user=Depends(deps.check_permission("manage_newsletters")),
 ) -> Any:
     existing = (await db.execute(
         select(NewsletterTheme).where(NewsletterTheme.name == payload.name)
@@ -187,7 +187,7 @@ async def update_newsletter_theme(
     id: UUID,
     payload: NewsletterThemeUpdate,
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.check_permission("manage_customers")),
+    current_user=Depends(deps.check_permission("manage_newsletters")),
 ) -> Any:
     theme = (await db.execute(
         select(NewsletterTheme).where(NewsletterTheme.id == id)
@@ -218,7 +218,7 @@ async def update_newsletter_theme(
 async def delete_newsletter_theme(
     id: UUID,
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.check_permission("manage_customers")),
+    current_user=Depends(deps.check_permission("manage_newsletters")),
 ) -> None:
     theme = (await db.execute(
         select(NewsletterTheme).where(NewsletterTheme.id == id)
@@ -236,7 +236,7 @@ async def delete_newsletter_theme(
 async def activate_newsletter_theme(
     id: UUID,
     db: AsyncSession = Depends(deps.get_db),
-    current_user=Depends(deps.check_permission("manage_customers")),
+    current_user=Depends(deps.check_permission("manage_newsletters")),
 ) -> Any:
     theme = (await db.execute(
         select(NewsletterTheme).where(NewsletterTheme.id == id)

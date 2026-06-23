@@ -115,43 +115,97 @@ def get_current_active_admin(
 ROLE_PERMISSIONS = {
     "admin": [
         "view_performance_metrics",
+        "view_overview",
+        "view_analytics",
+        "view_courses",
+        "manage_courses",
+        "delete_courses",
+        "view_registrations",
+        "manage_registrations",
+        "view_services",
+        "manage_services",
+        "view_products",
+        "manage_products",
+        "view_blog",
+        "manage_blog",
+        "view_contacts",
+        "manage_contacts",
+        "view_assistance",
+        "manage_assistance",
+        "view_newsletters",
+        "manage_newsletters",
+        "view_partners",
+        "manage_partners",
+        "view_trainers",
+        "manage_trainers",
+        "view_payments",
+        "manage_payments",
         "view_transactions",
         "export_transactions",
         "manage_refunds_disputes",
-        "manage_customers",
         "view_customers",
+        "manage_customers",
+        "view_users",
         "manage_users",
-        "view_users"
-    ],
-    "user": [
-        "view_customers"
     ],
     "moderator": [
         "view_performance_metrics",
+        "view_overview",
+        "view_analytics",
+        "view_courses",
+        "manage_courses",
+        "view_registrations",
+        "manage_registrations",
+        "view_services",
+        "manage_services",
+        "view_products",
+        "manage_products",
+        "view_blog",
+        "manage_blog",
+        "view_contacts",
+        "manage_contacts",
+        "view_assistance",
+        "manage_assistance",
+        "view_newsletters",
+        "manage_newsletters",
+        "view_partners",
+        "manage_partners",
+        "view_trainers",
+        "manage_trainers",
+        "view_payments",
+        "manage_payments",
         "view_transactions",
-        "manage_customers",
+        "export_transactions",
+        "manage_refunds_disputes",
         "view_customers",
-        "view_users"
+        "manage_customers",
+        "view_users",
     ],
     "instructor": [
+        "view_overview",
+        "view_analytics",
+        "view_courses",
+        "view_registrations",
+        "view_trainers",
+        "view_assistance",
+        "view_customers",
         "view_performance_metrics",
-        "view_customers"
+    ],
+    "user": [
+        "view_overview",
+        "view_courses",
+        "view_services",
+        "view_products",
+        "view_blog",
+        "view_customers",
+        "view_performance_metrics",
     ]
 }
 
 
 def get_user_permissions(user: models.User) -> list[str]:
     if user.is_superuser:
-        return [
-            "view_performance_metrics",
-            "view_transactions",
-            "export_transactions",
-            "manage_refunds_disputes",
-            "manage_customers",
-            "view_customers",
-            "manage_users",
-            "view_users"
-        ]
+        return ROLE_PERMISSIONS["admin"]
     role = (user.role or "").strip().lower()
     return ROLE_PERMISSIONS.get(role, [])
 

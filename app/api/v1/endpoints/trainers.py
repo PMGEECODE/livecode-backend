@@ -238,7 +238,7 @@ async def submit_trainer_application(
 @router.get("/applications", response_model=List[TrainerApplicationResponse])
 async def list_trainer_applications(
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.check_permission("view_users")),
+    current_user: models.User = Depends(deps.check_permission("view_trainers")),
     status: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
@@ -317,7 +317,7 @@ async def notify_trainer_rejection(application: TrainerApplicationResponse) -> N
 async def update_application_status(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.check_permission("manage_users")),
+    current_user: models.User = Depends(deps.check_permission("manage_trainers")),
     background_tasks: BackgroundTasks,
     app_id: str,
     status_in: TrainerApplicationUpdate,
@@ -358,7 +358,7 @@ async def update_application_status(
 async def download_trainer_cv(
     app_id: str,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.check_permission("view_users")),
+    current_user: models.User = Depends(deps.check_permission("view_trainers")),
 ) -> Response:
     """
     Secure CV document retrieval.
@@ -404,7 +404,7 @@ async def download_trainer_cv(
 async def download_trainer_cover_letter(
     app_id: str,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.check_permission("view_users")),
+    current_user: models.User = Depends(deps.check_permission("view_trainers")),
 ) -> Response:
     """
     Secure Cover Letter retrieval.

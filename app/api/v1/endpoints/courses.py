@@ -87,7 +87,7 @@ async def read_courses(
 async def create_course(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.check_permission("manage_customers")),
+    current_user: models.User = Depends(deps.check_permission("manage_courses")),
     course_in: schemas.CourseCreate,
 ) -> Any:
     """
@@ -111,7 +111,7 @@ async def create_course(
 
 @router.get("/draft", response_model=Optional[dict])
 async def get_course_draft(
-    current_user: models.User = Depends(deps.check_permission("view_performance_metrics")),
+    current_user: models.User = Depends(deps.check_permission("view_courses")),
 ) -> Any:
     """
     Retrieve the current logged-in user's course builder draft from Redis.
@@ -128,7 +128,7 @@ async def get_course_draft(
 @router.put("/draft")
 async def save_course_draft(
     draft_data: dict,
-    current_user: models.User = Depends(deps.check_permission("view_performance_metrics")),
+    current_user: models.User = Depends(deps.check_permission("view_courses")),
 ) -> Any:
     """
     Save/sync the current user's course builder draft to Redis.
@@ -146,7 +146,7 @@ async def save_course_draft(
 
 @router.delete("/draft")
 async def delete_course_draft(
-    current_user: models.User = Depends(deps.check_permission("view_performance_metrics")),
+    current_user: models.User = Depends(deps.check_permission("view_courses")),
 ) -> Any:
     """
     Delete/clear the current user's course builder draft from Redis.
@@ -253,7 +253,7 @@ async def read_course_by_slug(
 async def update_course(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.check_permission("manage_customers")),
+    current_user: models.User = Depends(deps.check_permission("manage_courses")),
     id: UUID,
     course_in: schemas.CourseUpdate,
 ) -> Any:
@@ -280,7 +280,7 @@ async def update_course(
 async def delete_course(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.check_permission("manage_customers")),
+    current_user: models.User = Depends(deps.check_permission("delete_courses")),
     id: UUID,
 ) -> Any:
     """
