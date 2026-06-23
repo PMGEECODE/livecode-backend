@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
@@ -11,6 +12,8 @@ from app.services.s3_storage import _clean_key_part
 from app.services.vercel_blob import upload_product_image_blob
 from app.core.upload_security import read_upload_file_limited, validate_image_upload
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -112,22 +115,55 @@ async def upload_product_image(
     Upload a product image to Vercel Blob.
     Returns the public URL of the uploaded image.
     """
-    # Read and validate image
-    data = await read_upload_file_limited(file, settings.IMAGE_UPLOAD_MAX_BYTES)
-    ext = validate_image_upload(file, data)
+    logger.info(
+        "Product image upload request received: filename=%s, content_type=%s",
+        file.filename,
+        file.content_type,
+    )
+    try:
+        data = await read_upload_file_limited(file, settings.IMAGE_UPLOAD_MAX_BYTES)
+        ext = validate_image_upload(file, data)
+    except HTTPException as e:
+        logger.error(
+            "Product image validation failed: status_code=%d, detail=%s",
+            e.status_code,
+            e.detail,
+        )
+        raise e
+    except Exception as e:
+        logger.exception("Unexpected error during product image validation")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during image validation.",
+        )
     
     import os
     import time
     
-    safe_name = _clean_key_part(os.path.splitext(file.filename)[0][:50])
+    safe_name = _clean_key_part(os.path.splitext(file.filename or "image")[0][:50])
     filename = f"{safe_name}_{int(time.time())}.{ext}"
     
     blob_key = f"products/{filename}"
     
-    public_url = await upload_product_image_blob(
-        pathname=blob_key,
-        data=data,
-        content_type=file.content_type or "image/jpeg",
-    )
+    try:
+        public_url = await upload_product_image_blob(
+            pathname=blob_key,
+            data=data,
+            content_type=file.content_type or f"image/{ext.lstrip('.')}",
+        )
+    except HTTPException as e:
+        logger.error(
+            "Vercel Blob upload failed: status_code=%d, detail=%s",
+            e.status_code,
+            e.detail,
+        )
+        raise e
+    except Exception as e:
+        logger.exception("Unexpected error during Vercel Blob upload")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while saving the image.",
+        )
     
+    logger.info("Product image uploaded successfully: url=%s", public_url)
     return {"url": public_url}

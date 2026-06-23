@@ -88,7 +88,7 @@ class Settings(BaseSettings):
 
     # Upload security
     UPLOAD_ROOT: str = "var/uploads"
-    IMAGE_UPLOAD_MAX_BYTES: int = 1_572_864  # 1.5 MB
+    IMAGE_UPLOAD_MAX_BYTES: int = 10_485_760  # 10 MB
     CLAMSCAN_PATH: str = "clamscan"
     REQUIRE_MALWARE_SCANNER: bool = False
 
