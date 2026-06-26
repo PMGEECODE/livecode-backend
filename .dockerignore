@@ -17,7 +17,10 @@ htmlcov/
 
 # Databases & logs
 *.sqlite
+*.db
 *.log
+.env
+.env.*
 
 # Docker/Compose
 Dockerfile

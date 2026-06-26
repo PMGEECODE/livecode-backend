@@ -42,6 +42,21 @@ class EndpointFilter(logging.Filter):
 logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 async def check_db_health():
+    """Verify DB connectivity and ensure schema is current.
+
+    Strategy:
+    - Fresh database (no Alembic revision recorded): create all tables directly
+      from SQLAlchemy model definitions, then stamp Alembic at head so future
+      restarts know the schema is already up to date.  Migrations are NOT run —
+      the models are the authoritative schema source for a clean install.
+    - Existing database at head: nothing to do.
+    - Existing database behind head: run ``alembic upgrade head`` to apply only
+      the incremental migrations needed to reach the current schema.
+    """
+    # Import here to guarantee all model files are registered on Base.metadata
+    # before create_all() is called.
+    from app.db.base import Base  # noqa: F401 — side-effect import
+
     db_url = str(engine.url)
     if ":" in db_url and "@" in db_url:
         parts = db_url.split("@")
@@ -59,19 +74,51 @@ async def check_db_health():
                 await conn.execute(text("SELECT 1"))
                 logger.info("✅ Database connection established successfully.")
 
-                def get_migration_status(connection):
+                def _get_revision_state(connection):
                     alembic_cfg = Config("alembic.ini")
                     script_dir = script.ScriptDirectory.from_config(alembic_cfg)
                     context = migration.MigrationContext.configure(connection)
                     return context.get_current_revision(), script_dir.get_current_head()
 
-                current_rev, head_rev = await conn.run_sync(get_migration_status)
+                current_rev, head_rev = await conn.run_sync(_get_revision_state)
 
-                if current_rev == head_rev:
-                    logger.info("🚀 Database migrations are UP TO DATE (Revision: %s)", current_rev)
+                if current_rev is None:
+                    # ── Fresh database ───────────────────────────────────────
+                    # No Alembic history means this is a brand-new install.
+                    # Create every table directly from the SQLAlchemy models;
+                    # this path is safe on any PostgreSQL host because it never
+                    # calls CREATE EXTENSION or any migration-specific SQL.
+                    logger.info(
+                        "🆕 Fresh database detected — creating schema from models "
+                        "(skipping migrations)."
+                    )
+                    await conn.run_sync(Base.metadata.create_all)
+                    await conn.commit()
+
+                    # Stamp Alembic at head so it treats the schema as current.
+                    # Future restarts will take the "up to date" path below.
+                    def _stamp_head(connection):
+                        alembic_cfg = Config("alembic.ini")
+                        ctx = migration.MigrationContext.configure(connection)
+                        ctx.stamp(script.ScriptDirectory.from_config(alembic_cfg), head_rev)
+
+                    await conn.run_sync(_stamp_head)
+                    await conn.commit()
+                    logger.info(
+                        "✅ Schema created and Alembic stamped at head (%s).", head_rev
+                    )
+
+                elif current_rev == head_rev:
+                    # ── Schema is current ────────────────────────────────────
+                    logger.info(
+                        "🚀 Database schema is UP TO DATE (revision: %s).", current_rev
+                    )
+
                 else:
+                    # ── Existing database, needs incremental upgrade ─────────
                     logger.warning(
-                        "⚠️  Database migrations are OUT OF SYNC! (Current: %s, Head: %s). Running upgrade...",
+                        "⚠️  Schema is OUT OF SYNC (current: %s, head: %s) — "
+                        "running alembic upgrade head.",
                         current_rev, head_rev,
                     )
                     import subprocess
@@ -80,12 +127,15 @@ async def check_db_health():
                         subprocess.run,
                         [sys.executable, "-m", "alembic", "upgrade", "head"],
                         capture_output=True,
-                        text=True
+                        text=True,
                     )
                     if res.returncode == 0:
                         logger.info("✅ Database upgraded successfully to head.")
                     else:
-                        logger.error("❌ Database migration upgrade failed:\n%s", res.stderr)
+                        logger.error(
+                            "❌ alembic upgrade head failed:\n%s", res.stderr
+                        )
+
             return  # success — exit the retry loop
 
         except Exception as exc:
@@ -213,6 +263,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/metrics", response_class=PlainTextResponse)
 async def metrics():
     return metrics_registry.generate_metrics_text()
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 # Ensure restricted upload directory exists. It is NOT publicly mounted via StaticFiles.
 # Files are served only through validated API endpoints.

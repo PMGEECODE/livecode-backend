@@ -16,15 +16,16 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
-    # Ensure gen_random_uuid() is available
-    op.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
+    # pgcrypto extension intentionally omitted: all UUID generation is handled
+    # in Python via uuid.uuid4 (see model definitions). No server-side
+    # gen_random_uuid() is required, and pgcrypto is not available on all hosts.
 
     # 1. Drop Foreign Keys and Indexes
     try:
         op.execute('ALTER TABLE "schedule" DROP CONSTRAINT IF EXISTS "schedule_course_id_fkey"')
     except Exception:
         pass
-        
+
     try:
         op.drop_index(op.f('ix_blogpost_id'), table_name='blogpost')
         op.drop_index(op.f('ix_course_id'), table_name='course')
@@ -34,19 +35,22 @@ def upgrade() -> None:
     except Exception:
         pass
 
-    # 2. Convert IDs to UUID for each table
+    # 2. Convert IDs to UUID for each table.
+    # After conversion, DROP DEFAULT — Python (uuid.uuid4) is the sole UUID
+    # source; no database-level default is needed or desired.
     tables = ['user', 'blogpost', 'course', 'service', 'schedule']
     for table in tables:
         op.execute(f'ALTER TABLE "{table}" ALTER COLUMN id DROP DEFAULT')
         op.execute(f'ALTER TABLE "{table}" ALTER COLUMN id TYPE UUID USING (LPAD(to_hex(id), 32, \'0\')::uuid)')
-        op.execute(f'ALTER TABLE "{table}" ALTER COLUMN id SET DEFAULT gen_random_uuid()')
+        # Leave no server default — Python generates UUIDs before INSERT.
 
     # Special handling for Schedule foreign key type
     op.execute('ALTER TABLE "schedule" ALTER COLUMN course_id TYPE UUID USING (LPAD(to_hex(course_id), 32, \'0\')::uuid)')
 
-    # 3. Create normalized tables
+    # 3. Create normalized tables.
+    # No server_default: Python supplies the UUID at INSERT time via uuid.uuid4.
     op.create_table('course_block',
-        sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+        sa.Column('id', sa.UUID(), nullable=False),
         sa.Column('course_id', sa.UUID(), nullable=False),
         sa.Column('type', sa.String(), nullable=False),
         sa.Column('content', sa.JSON(), nullable=False),
@@ -55,7 +59,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id')
     )
     op.create_table('course_logistics',
-        sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+        sa.Column('id', sa.UUID(), nullable=False),
         sa.Column('course_id', sa.UUID(), nullable=False),
         sa.Column('duration', sa.String(), nullable=True),
         sa.Column('start_date', sa.String(), nullable=True),
