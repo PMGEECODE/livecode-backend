@@ -7,7 +7,7 @@ import os
 from alembic import script
 from alembic.config import Config
 from alembic.runtime import migration
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
@@ -264,8 +264,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 async def metrics():
     return metrics_registry.generate_metrics_text()
 
-@app.get("/health")
-async def health():
+@app.api_route("/health", methods=["GET", "HEAD"])
+async def health(request: Request):
+    if request.method == "HEAD":
+        return Response(status_code=200)
     return {"status": "ok"}
 
 # Ensure restricted upload directory exists. It is NOT publicly mounted via StaticFiles.
