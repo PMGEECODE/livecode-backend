@@ -157,6 +157,55 @@ async def delete_course_draft(
     return {"status": "success"}
 
 
+# ---------------------------------------------------------------------------
+# Training Calendar endpoint — optimised for the public calendar page.
+# Fetches up to 1000 courses with only schedule + logistics data (no blocks).
+# All time-based / client-side filtering is done in the browser.
+# Redis TTL: 2 hours.  Invalidated on any course mutation.
+# ---------------------------------------------------------------------------
+
+@router.get("/calendar", response_model=List[schemas.CourseCalendarItem])
+@limiter.limit("120/minute")
+async def read_courses_calendar(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(deps.get_db),
+) -> Any:
+    """
+    Returns a compact list (≤ 1000) of courses with schedules + logistics only,
+    intended for the Training Calendar page.  Curriculum blocks are excluded to
+    keep the payload small and the response fast.
+    """
+    cache_key = "courses:calendar:v1"
+    cached_data = await redis_manager.get(cache_key)
+    if cached_data:
+        try:
+            return json.loads(cached_data)
+        except Exception:
+            pass
+
+    courses = await crud.course.get_multi(
+        db,
+        skip=0,
+        limit=1000,
+        summary=True,   # excludes curriculum_blocks
+        active_only=False,  # no slow Python filter — let browser filter by date
+    )
+
+    response.headers["X-Total-Count"] = str(len(courses))
+
+    try:
+        await redis_manager.set(
+            cache_key,
+            json.dumps(jsonable_encoder(courses)),
+            expire=7200,  # 2 hours
+        )
+    except Exception:
+        pass
+
+    return courses
+
+
 @router.get("/categories", response_model=List[dict])
 @limiter.limit("60/minute")
 async def read_course_categories(

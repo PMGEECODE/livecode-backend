@@ -806,3 +806,108 @@ async def test_delete_course_requires_delete_permission(async_client: AsyncClien
         # Clean up dependency override
         app.dependency_overrides[get_current_active_user] = mock_superuser
 
+
+# ────────────────────────────────────────────────────────────────────────────
+# G) TRAINING CALENDAR ENDPOINT TESTS
+# ────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_calendar_endpoint_returns_list(async_client: AsyncClient):
+    """GET /courses/calendar returns a JSON list."""
+    resp = await async_client.get("/api/v1/courses/calendar")
+    assert resp.status_code == status.HTTP_200_OK
+    assert isinstance(resp.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_calendar_endpoint_no_auth_required(async_client: AsyncClient):
+    """GET /courses/calendar must be publicly accessible (no auth token needed)."""
+    original = app.dependency_overrides.pop(get_current_active_user, None)
+    try:
+        resp = await async_client.get("/api/v1/courses/calendar")
+        assert resp.status_code == status.HTTP_200_OK
+    finally:
+        if original is not None:
+            app.dependency_overrides[get_current_active_user] = original
+
+
+@pytest.mark.asyncio
+async def test_calendar_endpoint_excludes_curriculum_blocks(async_client: AsyncClient):
+    """
+    Courses returned by /courses/calendar must not include curriculum_blocks
+    — the endpoint is optimised for the calendar page only.
+    """
+    from datetime import datetime
+
+    future_year = datetime.now().year + 1
+    payload = {
+        "title": "Calendar Block Test",
+        "slug": "calendar-block-test",
+        "category": "Technical Courses",
+        "curriculum_blocks": [
+            {"type": "text", "content": {"text": "Some block"}, "order_index": 0}
+        ],
+        "schedules": [
+            {
+                "date_range": f"01 Jan - 05 Jan {future_year}",
+                "location": "Nairobi",
+                "mode": "physical",
+                "year": future_year,
+            }
+        ],
+    }
+    create_resp = await async_client.post("/api/v1/courses/", json=payload)
+    assert create_resp.status_code == status.HTTP_200_OK
+
+    cal_resp = await async_client.get("/api/v1/courses/calendar")
+    assert cal_resp.status_code == status.HTTP_200_OK
+    for item in cal_resp.json():
+        assert "curriculum_blocks" not in item, (
+            f"curriculum_blocks leaked into calendar response for '{item.get('slug')}'"
+        )
+
+
+@pytest.mark.asyncio
+async def test_calendar_endpoint_returns_required_fields(async_client: AsyncClient):
+    """Courses in /courses/calendar must include title, slug, and schedules."""
+    from datetime import datetime
+
+    future_year = datetime.now().year + 1
+    payload = {
+        "title": "Calendar Fields Test",
+        "slug": "calendar-fields-test",
+        "category": "Data Science",
+        "schedules": [
+            {
+                "date_range": f"10 Feb - 14 Feb {future_year}",
+                "location": "Virtual",
+                "mode": "virtual",
+                "year": future_year,
+                "price_kes": 45000,
+                "price_usd": 350,
+            }
+        ],
+    }
+    create_resp = await async_client.post("/api/v1/courses/", json=payload)
+    assert create_resp.status_code == status.HTTP_200_OK
+
+    cal_resp = await async_client.get("/api/v1/courses/calendar")
+    assert cal_resp.status_code == status.HTTP_200_OK
+    items = cal_resp.json()
+    target = next((c for c in items if c["slug"] == "calendar-fields-test"), None)
+    assert target is not None, "Created course not found in calendar response"
+    assert "title" in target
+    assert "slug" in target
+    assert isinstance(target.get("schedules"), list)
+    assert len(target["schedules"]) == 1
+    assert target["schedules"][0]["location"] == "Virtual"
+
+
+@pytest.mark.asyncio
+async def test_calendar_endpoint_redis_cache_deterministic(async_client: AsyncClient):
+    """Two identical requests to /courses/calendar must return the same payload."""
+    resp1 = await async_client.get("/api/v1/courses/calendar")
+    resp2 = await async_client.get("/api/v1/courses/calendar")
+    assert resp1.status_code == status.HTTP_200_OK
+    assert resp2.status_code == status.HTTP_200_OK
+    assert resp1.json() == resp2.json()

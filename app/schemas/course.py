@@ -97,3 +97,14 @@ class CourseSummary(CourseInDBBase):
     logistics: Optional[CourseLogistics] = None
     schedules: List[Schedule] = []
 
+
+# --- Minimal schema for the Training Calendar page ---
+# Contains only the fields consumed by the calendar UI; no curriculum_blocks.
+class CourseCalendarItem(BaseModel):
+    title: str
+    slug: str
+    category: Optional[str] = None
+    logistics: Optional[CourseLogistics] = None
+    schedules: List[Schedule] = []
+
+    model_config = ConfigDict(from_attributes=True)
